@@ -2,8 +2,10 @@
  * The three things the globe can be made to show, each as a radius per mesh
  * vertex. Pure: no canvas, no React.
  *
- *   relief   signed, from the pair's area ratio. Bulges where A inflates the
- *            ground and sinks where B does, on one globe.
+ *   relief   signed, from one measure of the pair: the area ratio, the angle
+ *            difference, or the difference in how far each sheet has to stretch
+ *            — the two wrinkle globes subtracted. Bulges where A is the worse
+ *            of the two and sinks where B is, on one globe.
  *   wrinkle  unsigned, per map. Where a sheet must be compressed to lie on the
  *            globe it sheds the excess out of plane, so it ruffles.
  *   arcs     no displacement; the sphere stays a sphere and the difference is
@@ -34,6 +36,8 @@ export const MAX_SLOPE = 2.2;
 export function globeField(mesh, rawA, rawB, maxLat) {
   const { count, lon, lat } = mesh;
   const arealRatio = new Float64Array(count);
+  const angularDelta = new Float64Array(count);
+  const strainDelta = new Float64Array(count);
   const excessA = new Float64Array(count);
   const excessB = new Float64Array(count);
   const thetaA = new Float64Array(count);
@@ -44,6 +48,8 @@ export function globeField(mesh, rawA, rawB, maxLat) {
 
   for (let n = 0; n < count; n++) {
     arealRatio[n] = NaN;
+    angularDelta[n] = NaN;
+    strainDelta[n] = NaN;
     if (Math.abs(lat[n]) > maxLat) continue;
 
     const lambda = lon[n] * RADIANS;
@@ -54,8 +60,10 @@ export function globeField(mesh, rawA, rawB, maxLat) {
 
     defined[n] = 1;
     arealRatio[n] = Math.log2(localA.areal / localB.areal);
+    angularDelta[n] = localA.angular - localB.angular;
     excessA[n] = Math.max(localA.a - 1 - STRAIN_FLOOR, 0);
     excessB[n] = Math.max(localB.a - 1 - STRAIN_FLOOR, 0);
+    strainDelta[n] = excessA[n] - excessB[n];
     thetaA[n] = localA.theta;
     thetaB[n] = localB.theta;
     anisoA[n] = (localA.a - localA.b) / (localA.a + localA.b);
@@ -63,7 +71,20 @@ export function globeField(mesh, rawA, rawB, maxLat) {
   }
 
   capPoles(mesh, arealRatio, defined);
-  return { arealRatio, excessA, excessB, thetaA, thetaB, anisoA, anisoB, defined };
+  capPoles(mesh, angularDelta, defined);
+  capPoles(mesh, strainDelta, defined);
+  return {
+    arealRatio,
+    angularDelta,
+    strainDelta,
+    excessA,
+    excessB,
+    thetaA,
+    thetaB,
+    anisoA,
+    anisoB,
+    defined,
+  };
 }
 
 /**
@@ -73,7 +94,7 @@ export function globeField(mesh, rawA, rawB, maxLat) {
  * around the parallel, so the cap meets itself at the pole instead of tearing.
  * They stay outside `defined`, so the renderer still greys them out.
  */
-function capPoles(mesh, arealRatio, defined) {
+function capPoles(mesh, values, defined) {
   const { columns, rows } = mesh;
   const stride = columns + 1;
 
@@ -82,8 +103,8 @@ function capPoles(mesh, arealRatio, defined) {
     let seen = 0;
     for (let i = 0; i <= columns; i++) {
       const n = j * stride + i;
-      if (defined[n] && Number.isFinite(arealRatio[n])) {
-        total += arealRatio[n];
+      if (defined[n] && Number.isFinite(values[n])) {
+        total += values[n];
         seen++;
       }
     }
@@ -102,7 +123,7 @@ function capPoles(mesh, arealRatio, defined) {
     if (edge === null) return;
     for (let j = from; j !== to + step; j += step) {
       if (rowMean(j) !== null) return;
-      for (let i = 0; i <= columns; i++) arealRatio[j * stride + i] = edge;
+      for (let i = 0; i <= columns; i++) values[j * stride + i] = edge;
     }
   };
 
@@ -111,15 +132,16 @@ function capPoles(mesh, arealRatio, defined) {
 }
 
 /**
- * Signed relief. `range` is the same robust cap the flat Area map uses, so the
+ * Signed relief from one per-vertex measure — the area ratio or the angle
+ * difference. `range` is the same robust cap the matching flat map uses, so the
  * two views cannot disagree about which way a place leans, and `amplitude` is
  * plain vertical exaggeration.
  */
-export function reliefRadii(mesh, field, { range, amplitude }) {
+export function reliefRadii(mesh, values, { range, amplitude }) {
   const radii = new Float64Array(mesh.count).fill(1);
   for (let n = 0; n < mesh.count; n++) {
-    if (!Number.isFinite(field.arealRatio[n])) continue;
-    const t = Math.max(-1, Math.min(1, field.arealRatio[n] / range));
+    if (!Number.isFinite(values[n])) continue;
+    const t = Math.max(-1, Math.min(1, values[n] / range));
     radii[n] = 1 + amplitude * t;
   }
   return radii;

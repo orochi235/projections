@@ -20,6 +20,7 @@ const INITIAL = {
   columns: 72,
   morphT: 0.5,
   globeLayer: 'relief',
+  reliefSource: 'area',
   contrast: 1,
   shadeStrain: true,
   tilt: 0.32,
@@ -37,6 +38,34 @@ function robustRange(values, floor) {
     .sort((x, y) => x - y);
   if (!magnitudes.length) return floor;
   return Math.max(floor, magnitudes[Math.floor(magnitudes.length * 0.95)]);
+}
+
+/** `robustRange` over one of the globe field's per-vertex measures. */
+function meshRange(field, values, count, floor) {
+  const magnitudes = [];
+  for (let n = 0; n < count; n++) {
+    if (field.defined[n] && Number.isFinite(values[n])) magnitudes.push(Math.abs(values[n]));
+  }
+  if (!magnitudes.length) return floor;
+  magnitudes.sort((x, y) => x - y);
+  return Math.max(floor, magnitudes[Math.floor(magnitudes.length * 0.95)]);
+}
+
+// A pair that agrees exactly still measures a little above zero: the Jacobian is
+// a central difference, and two equal-area maps come out about 2e-7 apart in
+// log2. These are a few orders above that noise and a few below anything a
+// reader could see — 1e-4 in log2 is a hundredth of a percent of area.
+const FLAT_FLOOR = { area: 1e-4, angle: 1e-3, strain: 1e-4 };
+
+/** The largest difference anywhere, to tell "too small to see" from "identically
+ *  zero" — two equal-area maps have no area difference at all, and no contrast
+ *  setting can conjure one. */
+function spread(field, values, count) {
+  let worst = 0;
+  for (let n = 0; n < count; n++) {
+    if (field.defined[n] && Number.isFinite(values[n])) worst = Math.max(worst, Math.abs(values[n]));
+  }
+  return worst;
 }
 
 /**
@@ -167,11 +196,29 @@ export default function App() {
     if (globeLayer === 'arcs') {
       return { ...shared, radii: unitRadii(mesh), arcs: readingErrors(pair) };
     }
+
+    const source = settings.reliefSource;
+    const values =
+      source === 'angle'
+        ? measured.angularDelta
+        : source === 'strain'
+          ? measured.strainDelta
+          : measured.arealRatio;
+    const range =
+      source === 'angle'
+        ? angleRange
+        : source === 'strain'
+          ? meshRange(measured, measured.strainDelta, mesh.count, 0.05) / settings.contrast
+          : areaRange;
     return {
       ...shared,
-      radii: reliefRadii(mesh, measured, { range: areaRange, amplitude: exaggeration }),
+      source,
+      values,
+      range,
+      flat: spread(measured, values, mesh.count) < FLAT_FLOOR[source],
+      radii: reliefRadii(mesh, values, { range, amplitude: exaggeration }),
     };
-  }, [mesh, measured, pair, areaRange, strainCap, settings]);
+  }, [mesh, measured, pair, areaRange, angleRange, strainCap, settings]);
 
   const probe = useMemo(() => {
     if (onGlobe || !pointer || !pair.projA.invert) return null;

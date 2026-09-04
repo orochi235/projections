@@ -1,8 +1,14 @@
 import { CATALOG, FAMILIES } from '../lib/catalog.js';
 import { MODES } from '../lib/render.js';
 
+const RELIEF_SOURCES = [
+  ['area', 'Area', 'the ground each map inflates'],
+  ['angle', 'Angle', 'how much each map bends local shapes'],
+  ['strain', 'Wrinkling', 'how far each sheet has to stretch — the two wrinkle globes subtracted'],
+];
+
 const GLOBE_LAYERS = [
-  ['relief', 'Relief', 'The area ratio as height. Bulges where the first map inflates the ground.'],
+  ['relief', 'Relief', 'One measure of the pair as height. Bulges where the first map is the worse of the two.'],
   ['wrinkle', 'Wrinkle', 'Each sheet laid back on the globe. Where it is too big to fit, it ruffles.'],
   ['arcs', 'Reading error', 'Where the second map really shows the ground the first one puts at each node.'],
 ];
@@ -40,12 +46,14 @@ export default function Controls({ settings, update, summary, onSwap }) {
     globeColumns,
     contrast,
     shadeStrain,
+    reliefSource,
   } = settings;
   const onWrinkle = mode === 'globe' && globeLayer === 'wrinkle';
+  const onRelief = mode === 'globe' && globeLayer === 'relief';
   const onScale =
     mode === 'area' ||
     mode === 'angle' ||
-    (mode === 'globe' && globeLayer === 'relief') ||
+    onRelief ||
     (onWrinkle && shadeStrain);
 
   return (
@@ -79,6 +87,26 @@ export default function Controls({ settings, update, summary, onSwap }) {
             ))}
           </div>
           <p className="hint">{GLOBE_LAYERS.find(([key]) => key === globeLayer)[2]}</p>
+          {onRelief && (
+            <>
+              <h2>Height from</h2>
+              <div className="modes">
+                {RELIEF_SOURCES.map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    className={key === reliefSource ? 'mode is-on' : 'mode'}
+                    onClick={() => update({ reliefSource: key })}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="hint">
+                The difference in {RELIEF_SOURCES.find(([key]) => key === reliefSource)[2]}.
+              </p>
+            </>
+          )}
         </section>
       )}
 

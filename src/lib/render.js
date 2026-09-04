@@ -265,7 +265,7 @@ function drawArcs(ctx, arcs, locate) {
 
 /** The comparison put back on the sphere. */
 function renderGlobe(ctx, state) {
-  const { globe, land, width, height, areaRange } = state;
+  const { globe, land, width, height } = state;
   if (!globe) return;
   const { mesh, field, layer, yaw, pitch } = globe;
   const view = { yaw, pitch };
@@ -314,8 +314,8 @@ function renderGlobe(ctx, state) {
     cam,
     land,
     quadColor: (q, p0) => {
-      const ratio = (field.arealRatio[p0] + field.arealRatio[p0 + stride + 1]) / 2;
-      return divergingStep(ratio / areaRange);
+      const value = (globe.values[p0] + globe.values[p0 + stride + 1]) / 2;
+      return divergingStep(value / globe.range);
     },
   });
 }

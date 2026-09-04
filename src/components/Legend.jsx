@@ -49,6 +49,32 @@ function decimalsFor(range) {
   return range >= 0.5 ? 1 : 2;
 }
 
+const RELIEF_TEXT = {
+  area: 'Height is the same ratio the flat Area map colours.',
+  angle: 'Height is the difference in how far each map bends local shapes.',
+  strain: 'Height is the two wrinkle globes subtracted: how much further one sheet has to stretch to lie on the sphere than the other.',
+};
+
+const RELIEF_FLAT = {
+  area: 'Both of these are equal-area maps, so they put the same ground area in the same amount of ink everywhere and their ratio is exactly 1.',
+  angle: 'Both of these are conformal maps, so neither bends local shapes at all.',
+  strain: 'These two sheets stretch by exactly the same amount everywhere.',
+};
+
+/** Ends for whichever measure the relief is built from. */
+function reliefTicks(source, range) {
+  if (source === 'angle') {
+    return { unit: '\u00b0', format: (t) => Math.abs(t).toFixed(decimalsFor(range)) };
+  }
+  if (source === 'strain') {
+    return {
+      unit: '',
+      format: (t) => `${Math.abs(t * 100).toFixed(range < 0.1 ? 1 : 0)}% longer`,
+    };
+  }
+  return areaTicks(range);
+}
+
 export default function Legend({ mode, names, summary, areaRange, angleRange, probe, globe }) {
   return (
     <footer className="legend">
@@ -99,11 +125,20 @@ export default function Legend({ mode, names, summary, areaRange, angleRange, pr
 
         {mode === 'globe' && globe?.layer === 'relief' && (
           <>
-            <DivergingBar range={areaRange} {...areaTicks(areaRange)} />
+            <DivergingBar range={globe.range} {...reliefTicks(globe.source, globe.range)} />
             <p className="legend-keys">
-              Height is the same ratio the flat Area map colours. It bulges where{' '}
-              <span className="key key-a">{names.a}</span> shows the ground larger and sinks where{' '}
-              <span className="key key-b">{names.b}</span> does. Drag to turn the globe.
+              {globe.flat ? (
+                <>
+                  {RELIEF_FLAT[globe.source]} There is nothing for the height to follow, at any
+                  contrast — take the height from something else.
+                </>
+              ) : (
+                <>
+                  {RELIEF_TEXT[globe.source]} It bulges where{' '}
+                  <span className="key key-a">{names.a}</span> is the worse of the two and sinks
+                  where <span className="key key-b">{names.b}</span> is. Drag to turn the globe.
+                </>
+              )}
             </p>
           </>
         )}

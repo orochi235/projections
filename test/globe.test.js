@@ -149,7 +149,7 @@ test('relief leans the same way the flat area map is coloured', () => {
   const flat = sampleField(pair, { columns: 72, rows: 36 });
   const mesh = sphereMesh(72, 36);
   const field = globeField(mesh, pair.rawA, pair.rawB, pair.maxLat);
-  const radii = reliefRadii(mesh, field, { range: 1, amplitude: 0.25 });
+  const radii = reliefRadii(mesh, field.arealRatio, { range: 1, amplitude: 0.25 });
 
   let compared = 0;
   for (let n = 0; n < mesh.count; n++) {
@@ -201,4 +201,37 @@ test('the fold carrier cannot tell the two ends of an axis apart', () => {
       `flipping the axis at ${mesh.lon[n]},${mesh.lat[n]} moved the surface`,
     );
   }
+});
+
+test('two equal-area maps differ in stretch but not in area', () => {
+  const pair = buildPair({ idA: 'equalEarth', idB: 'boggs', width: 900, height: 500 });
+  const mesh = sphereMesh(72, 36);
+  const field = globeField(mesh, pair.rawA, pair.rawB, pair.maxLat);
+
+  let worstArea = 0;
+  let worstStrain = 0;
+  for (let n = 0; n < mesh.count; n++) {
+    if (!field.defined[n]) continue;
+    worstArea = Math.max(worstArea, Math.abs(field.arealRatio[n]));
+    worstStrain = Math.max(worstStrain, Math.abs(field.strainDelta[n]));
+  }
+  // Not exactly zero: the Jacobian is a central difference, so an exactly
+  // equal-area pair still measures a couple of parts in ten million.
+  assert.ok(worstArea < 1e-5, `area ratio should vanish, worst was ${worstArea}`);
+  assert.ok(worstStrain > 0.5, `stretch should not, worst was ${worstStrain}`);
+});
+
+test('the relief follows whichever measure it is given', () => {
+  const pair = buildPair({ idA: 'equalEarth', idB: 'boggs', width: 900, height: 500 });
+  const mesh = sphereMesh(72, 36);
+  const field = globeField(mesh, pair.rawA, pair.rawB, pair.maxLat);
+  const byArea = reliefRadii(mesh, field.arealRatio, { range: 1, amplitude: 0.25 });
+  const byStrain = reliefRadii(mesh, field.strainDelta, { range: 1, amplitude: 0.25 });
+
+  let moved = 0;
+  for (let n = 0; n < mesh.count; n++) {
+    assert.ok(Math.abs(byArea[n] - 1) < 1e-6);
+    if (Math.abs(byStrain[n] - 1) > 1e-6) moved++;
+  }
+  assert.ok(moved > 1000, `only ${moved} vertices moved`);
 });

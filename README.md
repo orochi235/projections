@@ -34,8 +34,12 @@ projection is the more distorted one at that spot, teal means the second.
 **Morph** blends the two raw projections and lets you scrub between them.
 
 **Globe** turns the comparison back into a solid. *Relief* pushes the surface out
-where the first map inflates the ground and pulls it in where the second does,
-which is the Area heat map as a shape. *Wrinkle* lays each sheet back onto the
+where the first map is the worse of the two and pulls it in where the second is,
+taking its height from the area ratio, the angle difference, or the difference in
+how far each sheet has to stretch — the two wrinkle globes subtracted. That last
+one is the only measure that never vanishes: two equal-area maps have an area
+ratio of exactly 1 everywhere, so Relief on Equal Earth against Boggs eumorphic is
+a featureless sphere until you take the height from stretch instead. *Wrinkle* lays each sheet back onto the
 sphere: where it is too big to fit it has to ruffle, and since that is a property
 of one map rather than of a pair it draws two globes side by side; colour there is
 the local excess, white where the sheet lies on the sphere untouched. *Reading
