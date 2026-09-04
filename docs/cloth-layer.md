@@ -2,7 +2,9 @@
 
 For whoever picks this up. You know the app; this is what the Cloth globe layer
 does today, why Equal Earth still looks like broken glass, and what to try next.
-Everything below is committed on `main` and deployed.
+The work is on `main` — `git log --oneline` for what landed — and every push
+deploys to https://michaelbaker.tech/projections/ through
+`.github/workflows/pages.yml`.
 
 ## What it does
 
