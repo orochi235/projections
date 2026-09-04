@@ -1,0 +1,368 @@
+:root {
+  --sheet: #e7edee;
+  --sheet-deep: #d6e0e2;
+  --ink: #1b2e3a;
+  --ink-soft: #5c7080;
+  --hairline: #a9bac0;
+  --a: #bc1a7b;
+  --b: #0a7a87;
+
+  --rail: 19rem;
+  --sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--sheet);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  display: grid;
+  grid-template-columns: var(--rail) minmax(0, 1fr);
+  height: 100%;
+}
+
+/* ---------------------------------------------------------------- rail --- */
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1.75rem 1.5rem;
+  overflow-y: auto;
+  border-right: 1px solid var(--hairline);
+  background: linear-gradient(var(--sheet), var(--sheet-deep));
+}
+
+.rail-head h1 {
+  margin: 0;
+  font-size: 1.375rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.rail-head p {
+  margin: 0.4rem 0 0;
+  max-width: 34ch;
+  color: var(--ink-soft);
+}
+
+.rail-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.rail-block h2 {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.hint {
+  margin: 0;
+  max-width: 34ch;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+
+/* The tick beside each picker teaches the colour key before the map does. */
+.picker {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.picker-tick {
+  position: absolute;
+  left: 0;
+  width: 4px;
+  height: 1.35rem;
+  border-radius: 2px;
+  background: var(--tick, var(--hairline));
+}
+
+.picker-a,
+.row-a,
+.key-a,
+.legend-end-a {
+  --tick: var(--a);
+}
+
+.picker-b,
+.row-b,
+.key-b,
+.legend-end-b {
+  --tick: var(--b);
+}
+
+.picker select {
+  flex: 1;
+  appearance: none;
+  padding: 0.5rem 1.75rem 0.5rem 1rem;
+  border: 1px solid var(--hairline);
+  border-radius: 3px;
+  background: #fff
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='7'><path d='M1 1l4 4 4-4' fill='none' stroke='%235c7080' stroke-width='1.5'/></svg>")
+    no-repeat right 0.7rem center;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 500;
+}
+
+.swap {
+  align-self: flex-start;
+  padding: 0.2rem 0;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.swap:hover {
+  color: var(--ink);
+}
+
+.modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.mode {
+  padding: 0.3rem 0.65rem;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  cursor: pointer;
+}
+
+.mode.is-on {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--sheet);
+}
+
+.slider {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+}
+
+.slider span {
+  color: var(--ink-soft);
+}
+
+.slider output {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.slider input {
+  grid-column: 1 / -1;
+  width: 100%;
+  accent-color: var(--ink);
+}
+
+.scores table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.scores th,
+.scores td {
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--hairline);
+  text-align: right;
+  font-weight: 400;
+}
+
+.scores thead th {
+  color: var(--ink-soft);
+  font-size: 0.75rem;
+}
+
+.scores tbody th {
+  position: relative;
+  padding-left: 0.85rem;
+  text-align: left;
+  font-weight: 500;
+}
+
+.scores tbody th .picker-tick {
+  height: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.scores td {
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+}
+
+/* --------------------------------------------------------------- stage --- */
+
+.stage {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.canvas-frame {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.canvas-frame canvas {
+  display: block;
+  cursor: crosshair;
+}
+
+.legend {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 17rem;
+  gap: 1.5rem;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--hairline);
+  background: var(--sheet-deep);
+}
+
+.legend-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.legend-keys {
+  margin: 0;
+  color: var(--ink-soft);
+  max-width: 70ch;
+}
+
+.legend-keys b {
+  font-family: var(--mono);
+  font-weight: 500;
+}
+
+.key {
+  font-weight: 600;
+  color: var(--tick, var(--ink));
+}
+
+.legend-scale {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.ramp {
+  display: flex;
+  flex: 1;
+  max-width: 26rem;
+  height: 0.6rem;
+  border: 1px solid var(--hairline);
+}
+
+.ramp i {
+  flex: 1;
+}
+
+.legend-end {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--tick, var(--ink-soft));
+  white-space: nowrap;
+}
+
+.readout dl {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.readout dl > div {
+  position: relative;
+  display: grid;
+  grid-template-columns: 8rem 1fr;
+  gap: 0.5rem;
+}
+
+.readout dt {
+  color: var(--tick, var(--ink-soft));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.readout dd {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.readout-empty {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+@media (max-width: 60rem) {
+  .app {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+    height: auto;
+  }
+
+  .rail {
+    border-right: 0;
+    border-bottom: 1px solid var(--hairline);
+  }
+
+  .canvas-frame {
+    aspect-ratio: 16 / 9;
+  }
+
+  .legend {
+    grid-template-columns: 1fr;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--a);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
