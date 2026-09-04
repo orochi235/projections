@@ -1,5 +1,6 @@
-import { geoGraticule10, geoPath } from 'd3-geo';
-import { diverging, PALETTE } from './palette.js';
+import { geoGraticule10, geoInterpolate, geoPath } from 'd3-geo';
+import { buildFrame, camera, locator } from './globe.js';
+import { diverging, divergingStep, PALETTE, shadeStep } from './palette.js';
 
 const GRATICULE = geoGraticule10();
 
@@ -130,6 +131,187 @@ function renderMorph(ctx, { pair, land, morphT }) {
   if (land) strokeGeometry(ctx, projection, land, { color: PALETTE.ink, width: 0.8, alpha: 0.5 });
 }
 
+/* ---------------------------------------------------------------- globe --- */
+
+/**
+ * Every ring of a GeoJSON object, as arrays of [lon, lat]. topojson's `feature`
+ * hands back a FeatureCollection even for a single named object, which geoPath
+ * absorbs silently and a hand-written walker does not.
+ */
+function* rings(input) {
+  if (input.type === 'FeatureCollection') {
+    for (const child of input.features) yield* rings(child);
+    return;
+  }
+  if (input.type === 'GeometryCollection') {
+    for (const child of input.geometries) yield* rings(child);
+    return;
+  }
+  const geometry = input.type === 'Feature' ? input.geometry : input;
+  if (!geometry) return;
+  const { type, coordinates } = geometry;
+  if (type === 'MultiPolygon') for (const polygon of coordinates) yield* polygon;
+  else if (type === 'Polygon' || type === 'MultiLineString') yield* coordinates;
+  else if (type === 'LineString') yield coordinates;
+}
+
+/** Draws a geometry onto the displaced surface, dropping what is over the horizon. */
+function strokeOnSphere(ctx, geometry, locate, { color, width, alpha }) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.beginPath();
+  for (const ring of rings(geometry)) {
+    let drawing = false;
+    for (const [lon, lat] of ring) {
+      const point = locate(lon, lat);
+      if (point.z <= 0) {
+        drawing = false;
+        continue;
+      }
+      if (drawing) ctx.lineTo(point.x, point.y);
+      else {
+        ctx.moveTo(point.x, point.y);
+        drawing = true;
+      }
+    }
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** One globe: painter's-algorithm quads, then coastline and graticule on top. */
+function drawGlobe(ctx, { mesh, radii, cam, land, quadColor }) {
+  const frame = buildFrame(mesh, radii, cam);
+  const { sx, sy, order, shade: lambert, columns } = frame;
+  const stride = columns + 1;
+
+  for (let n = 0; n < order.length; n++) {
+    const q = order[n];
+    const i = q % columns;
+    const p0 = ((q - i) / columns) * stride + i;
+    const p3 = p0 + stride;
+    // Fill only. The flat modes stroke each cell in its own colour to close the
+    // seams between them, but that costs about four times what the fill does,
+    // and here neighbouring quads already share their corner vertices exactly.
+    ctx.fillStyle = shadeStep(quadColor(q, p0), lambert[q]);
+    ctx.beginPath();
+    ctx.moveTo(sx[p0], sy[p0]);
+    ctx.lineTo(sx[p0 + 1], sy[p0 + 1]);
+    ctx.lineTo(sx[p3 + 1], sy[p3 + 1]);
+    ctx.lineTo(sx[p3], sy[p3]);
+    ctx.fill();
+  }
+
+  const locate = locator(mesh, radii, cam);
+  strokeOnSphere(ctx, GRATICULE, locate, { color: PALETTE.ink, width: 0.4, alpha: 0.14 });
+  if (land) strokeOnSphere(ctx, land, locate, { color: PALETTE.ink, width: 0.75, alpha: 0.5 });
+  return locate;
+}
+
+function caption(ctx, text, x, y, color) {
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.font = '600 13px "IBM Plex Sans", system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(text, x, y);
+  ctx.restore();
+}
+
+/**
+ * Great-circle stalks. Each runs from a graticule node to the place map B
+ * actually shows at the point where map A shows that node, so the arc is the
+ * reading error you make by taking one map for the other.
+ */
+function drawArcs(ctx, arcs, locate) {
+  ctx.save();
+  ctx.lineCap = 'round';
+  for (const [fromLon, fromLat, toLon, toLat] of arcs) {
+    const along = geoInterpolate([fromLon, fromLat], [toLon, toLat]);
+    const points = [];
+    for (let k = 0; k <= 8; k++) {
+      const [lon, lat] = along(k / 8);
+      const point = locate(lon, lat);
+      if (point.z <= 0) {
+        points.length = 0;
+        break;
+      }
+      points.push(point);
+    }
+    if (points.length < 2) continue;
+
+    ctx.globalAlpha = 0.75;
+    ctx.strokeStyle = PALETTE.ink;
+    ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (const point of points.slice(1)) ctx.lineTo(point.x, point.y);
+    ctx.stroke();
+
+    ctx.globalAlpha = 0.95;
+    for (const [point, color] of [
+      [points[0], PALETTE.a],
+      [points[points.length - 1], PALETTE.b],
+    ]) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 1.7, 0, 2 * Math.PI);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+/** The comparison put back on the sphere. */
+function renderGlobe(ctx, state) {
+  const { globe, land, width, height, areaRange } = state;
+  if (!globe) return;
+  const { mesh, field, layer, yaw, pitch } = globe;
+  const view = { yaw, pitch };
+
+  if (layer === 'wrinkle') {
+    const scale = Math.min(width / 4.6, height / 2.5);
+    const flat = (color) => () => color;
+    for (const [radii, color, cx, name] of [
+      [globe.radiiA, PALETTE.a, width * 0.27, globe.names.a],
+      [globe.radiiB, PALETTE.b, width * 0.73, globe.names.b],
+    ]) {
+      const cam = camera({ ...view, scale, cx, cy: height / 2 });
+      drawGlobe(ctx, { mesh, radii, cam, land, quadColor: flat(color) });
+      caption(ctx, name, cx, height / 2 + scale + 26, color);
+    }
+    return;
+  }
+
+  const scale = Math.min(width, height) * 0.4;
+  const cam = camera({ ...view, scale, cx: width / 2, cy: height / 2 });
+
+  if (layer === 'arcs') {
+    const locate = drawGlobe(ctx, {
+      mesh,
+      radii: globe.radii,
+      cam,
+      land,
+      quadColor: () => PALETTE.land,
+    });
+    drawArcs(ctx, globe.arcs, locate);
+    return;
+  }
+
+  const stride = mesh.columns + 1;
+  drawGlobe(ctx, {
+    mesh,
+    radii: globe.radii,
+    cam,
+    land,
+    quadColor: (q, p0) => {
+      const ratio = (field.arealRatio[p0] + field.arealRatio[p0 + stride + 1]) / 2;
+      return divergingStep(ratio / areaRange);
+    },
+  });
+}
+
 export const MODES = {
   outlines: {
     label: 'Outlines',
@@ -158,10 +340,15 @@ export const MODES = {
     hint: 'Bend the first map into the second.',
     render: renderMorph,
   },
+  globe: {
+    label: 'Globe',
+    hint: 'The same comparison, put back on the sphere.',
+    render: renderGlobe,
+  },
 };
 
 export function draw(ctx, width, height, state) {
   clear(ctx, width, height);
   const mode = MODES[state.mode] ?? MODES.outlines;
-  mode.render(ctx, state);
+  mode.render(ctx, { ...state, width, height });
 }

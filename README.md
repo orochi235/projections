@@ -6,7 +6,8 @@ Pick any two whole-world map projections and the app renders the difference
 between them four ways: as overlaid outlines, as a field showing how far every
 point travels between the two, and as heat maps of which one inflates area more
 and which one bends local shapes more. There is also a morph, which is the least
-rigorous view and often the most legible.
+rigorous view and often the most legible, and a globe, which puts the whole
+comparison back on the sphere.
 
 ```
 npm install
@@ -32,8 +33,34 @@ projection is the more distorted one at that spot, teal means the second.
 
 **Morph** blends the two raw projections and lets you scrub between them.
 
+**Globe** turns the comparison back into a solid. *Relief* pushes the surface out
+where the first map inflates the ground and pulls it in where the second does,
+which is the Area heat map as a shape. *Wrinkle* lays each sheet back onto the
+sphere: where it is too big to fit it has to ruffle, and since that is a property
+of one map rather than of a pair it draws two globes side by side. *Reading
+error* runs an arc from each graticule node to the ground the second map really
+shows there. Drag to turn it.
+
 Both heat maps are drawn in the *first* projection's plane, so they read as "here
 is where, on map A, the two disagree". Swapping the pair re-frames them.
+
+## What the folds mean
+
+A map sheet buckles where it must be compressed to lie on the globe. Along the
+Tissot major axis the sheet is a factor `a` too long, and a sinusoid absorbs that
+excess at amplitude `(λ/π)·√(a−1)`, so the fold depth is set by the strain and
+the spacing is yours to choose.
+
+Two readings fall out of that. Equal-area projections still buckle: `a·b = 1`
+kills the area error but not the excess length, and a sheet stretched one way and
+squeezed the other has the same area and still cannot lie flat. And because
+`areaNormalization` fixes the plane scale, every map is in tension near its
+standard region and in compression outside it — so the folds start at a definite
+parallel, around 55° for Mercator, and nothing ruffles inside that.
+
+Fold depth is a scaling law, not a cloth simulation. It is held to a slope past
+which real material would fold over instead, and the view is the least rigorous
+one here after the morph.
 
 ## How the numbers are worked out
 
@@ -86,6 +113,8 @@ comparison cover the same ground.
 src/lib/catalog.js      the projection list, with per-projection latitude limits
 src/lib/distortion.js   Jacobian, Tissot, area normalization, morph
 src/lib/diff.js         fits the pair to a shared box, samples the mesh, scores
+src/lib/globe.js        sphere mesh, camera, depth sort, screen projection
+src/lib/relief.js       the three globe fields: relief, wrinkle, arcs
 src/lib/render.js       canvas drawing for each mode
 src/lib/palette.js      the two hues and the diverging ramp
 src/components/         controls, canvas, legend

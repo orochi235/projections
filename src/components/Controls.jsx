@@ -1,6 +1,12 @@
 import { CATALOG, FAMILIES } from '../lib/catalog.js';
 import { MODES } from '../lib/render.js';
 
+const GLOBE_LAYERS = [
+  ['relief', 'Relief', 'The area ratio as height. Bulges where the first map inflates the ground.'],
+  ['wrinkle', 'Wrinkle', 'Each sheet laid back on the globe. Where it is too big to fit, it ruffles.'],
+  ['arcs', 'Reading error', 'Where the second map really shows the ground the first one puts at each node.'],
+];
+
 function ProjectionPicker({ side, value, onChange }) {
   return (
     <label className={`picker picker-${side}`}>
@@ -21,7 +27,8 @@ function ProjectionPicker({ side, value, onChange }) {
 }
 
 export default function Controls({ settings, update, summary, onSwap }) {
-  const { idA, idB, mode, rotate, columns, morphT } = settings;
+  const { idA, idB, mode, rotate, columns, morphT, globeLayer, exaggeration, wavelength, globeColumns } =
+    settings;
 
   return (
     <aside className="rail">
@@ -55,6 +62,25 @@ export default function Controls({ settings, update, summary, onSwap }) {
         <p className="hint">{MODES[mode].hint}</p>
       </section>
 
+      {mode === 'globe' && (
+        <section className="rail-block">
+          <h2>Show on the sphere</h2>
+          <div className="modes">
+            {GLOBE_LAYERS.map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                className={key === globeLayer ? 'mode is-on' : 'mode'}
+                onClick={() => update({ globeLayer: key })}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="hint">{GLOBE_LAYERS.find(([key]) => key === globeLayer)[2]}</p>
+        </section>
+      )}
+
       <section className="rail-block">
         {mode === 'morph' && (
           <label className="slider">
@@ -80,19 +106,60 @@ export default function Controls({ settings, update, summary, onSwap }) {
             value={-rotate}
             onChange={(event) => update({ rotate: -Number(event.target.value) })}
           />
-          <output>{-rotate}°</output>
+          <output>{Math.round(-rotate)}°</output>
         </label>
+        {mode === 'globe' && globeLayer === 'relief' && (
+          <label className="slider">
+            <span>Exaggeration</span>
+            <input
+              type="range"
+              min="0.04"
+              max="0.5"
+              step="0.02"
+              value={exaggeration}
+              onChange={(event) => update({ exaggeration: Number(event.target.value) })}
+            />
+            <output>{Math.round(exaggeration * 100)}%</output>
+          </label>
+        )}
+        {mode === 'globe' && globeLayer === 'wrinkle' && (
+          <label className="slider">
+            <span>Fold spacing</span>
+            <input
+              type="range"
+              min="0.06"
+              max="0.4"
+              step="0.01"
+              value={wavelength}
+              onChange={(event) => update({ wavelength: Number(event.target.value) })}
+            />
+            <output>{(wavelength * (180 / Math.PI)).toFixed(0)}°</output>
+          </label>
+        )}
         <label className="slider">
           <span>Sampling</span>
-          <input
-            type="range"
-            min="24"
-            max="144"
-            step="12"
-            value={columns}
-            onChange={(event) => update({ columns: Number(event.target.value) })}
-          />
-          <output>{columns}×{columns / 2}</output>
+          {mode === 'globe' ? (
+            <input
+              type="range"
+              min="180"
+              max="540"
+              step="90"
+              value={globeColumns}
+              onChange={(event) => update({ globeColumns: Number(event.target.value) })}
+            />
+          ) : (
+            <input
+              type="range"
+              min="24"
+              max="144"
+              step="12"
+              value={columns}
+              onChange={(event) => update({ columns: Number(event.target.value) })}
+            />
+          )}
+          <output>
+            {mode === 'globe' ? `${globeColumns}×${globeColumns / 2}` : `${columns}×${columns / 2}`}
+          </output>
         </label>
       </section>
 

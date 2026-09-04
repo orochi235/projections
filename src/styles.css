@@ -244,6 +244,14 @@ body {
   cursor: crosshair;
 }
 
+.canvas-frame canvas.is-turnable {
+  cursor: grab;
+}
+
+.canvas-frame canvas.is-turnable:active {
+  cursor: grabbing;
+}
+
 .legend {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 17rem;

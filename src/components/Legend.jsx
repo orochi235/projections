@@ -17,7 +17,7 @@ function DivergingBar({ range, unit, format }) {
   );
 }
 
-export default function Legend({ mode, names, summary, areaRange, angleRange, probe }) {
+export default function Legend({ mode, names, summary, areaRange, angleRange, probe, globe }) {
   return (
     <footer className="legend">
       <div className="legend-body">
@@ -64,10 +64,42 @@ export default function Legend({ mode, names, summary, areaRange, angleRange, pr
             <span className="key key-b">{names.b}</span>.
           </p>
         )}
+
+        {mode === 'globe' && globe?.layer === 'relief' && (
+          <>
+            <DivergingBar range={areaRange} unit="×" format={(t) => (2 ** t).toFixed(1)} />
+            <p className="legend-keys">
+              Height is the same ratio the flat Area map colours. It bulges where{' '}
+              <span className="key key-a">{names.a}</span> shows the ground larger and sinks where{' '}
+              <span className="key key-b">{names.b}</span> does. Drag to turn the globe.
+            </p>
+          </>
+        )}
+
+        {mode === 'globe' && globe?.layer === 'wrinkle' && (
+          <p className="legend-keys">
+            Each sheet laid back on the globe, ruffling wherever it is too big to fit. Worst excess{' '}
+            <b>{(globe.peak.a.strain * 100).toFixed(0)}%</b> on{' '}
+            <span className="key key-a">{names.a}</span>,{' '}
+            <b>{(globe.peak.b.strain * 100).toFixed(0)}%</b> on{' '}
+            <span className="key key-b">{names.b}</span>. Fold depth follows a scaling law, not a
+            cloth simulation, and flattens off where real material would fold over.
+          </p>
+        )}
+
+        {mode === 'globe' && globe?.layer === 'arcs' && (
+          <p className="legend-keys">
+            Each arc starts where <span className="key key-a">{names.a}</span> puts a graticule node
+            and ends at the ground <span className="key key-b">{names.b}</span> really shows there —
+            the error you make by reading one map as the other.
+          </p>
+        )}
       </div>
 
       <div className="readout" aria-live="off">
-        {probe ? (
+        {mode === 'globe' ? (
+          <p className="readout-empty">Drag the globe to turn it.</p>
+        ) : probe ? (
           <dl>
             <div>
               <dt>Position</dt>

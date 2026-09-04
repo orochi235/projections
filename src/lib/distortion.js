@@ -43,6 +43,7 @@ export function jacobian(raw, lambda, phi) {
  *   a, b     semi-axes of the Tissot indicatrix, a >= b
  *   areal    area scale factor, equal to a * b
  *   angular  maximum angular deformation, in degrees
+ *   theta    bearing of the major axis, radians anticlockwise from east
  *
  * Null at the poles and anywhere the projection is singular.
  */
@@ -69,7 +70,30 @@ export function distortion(raw, lambda, phi) {
   const b = (sum - diff) / 2;
   const angular = 2 * Math.asin(Math.min(1, (a - b) / (a + b))) * DEGREES;
 
-  return { h, k, a, b, areal, angular };
+  // The first fundamental form in the local east/north frame. Its eigenvectors
+  // are the Tissot axes as directions on the globe, which is what a wrinkle
+  // needs: the sheet is longest along the major axis, so folds run across it.
+  const east = k * k;
+  const north = h * h;
+  const cross = (xl * xp + yl * yp) / cosPhi;
+  const theta = majorAxis(east, cross, north, a * a);
+
+  return { h, k, a, b, areal, angular, theta };
+}
+
+/**
+ * Bearing of the eigenvector of [[e, f], [f, g]] for the larger eigenvalue,
+ * measured anticlockwise from east and folded into [0, pi) because an axis has
+ * no direction. Both rows of (M - lambda*I) give the eigenvector; the one with
+ * the larger norm is the better conditioned.
+ */
+function majorAxis(e, f, g, lambda) {
+  if (Math.abs(f) < 1e-12) return e >= g ? 0 : Math.PI / 2;
+  const first = [f, lambda - e];
+  const second = [lambda - g, f];
+  const v = Math.hypot(first[0], first[1]) >= Math.hypot(second[0], second[1]) ? first : second;
+  const angle = Math.atan2(v[1], v[0]);
+  return angle < 0 ? angle + Math.PI : angle % Math.PI;
 }
 
 /**

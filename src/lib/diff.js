@@ -4,14 +4,19 @@ import { areaNormalization, distortion, interpolateRaw, scaleRaw } from './disto
 
 const RADIANS = Math.PI / 180;
 
+// Caches the wrapped projection, not just the scale factor: consumers memoize
+// on the identity of `rawA` and `rawB`, and a fresh wrapper per call would
+// silently invalidate every one of them on each redraw.
 const normalizationCache = new Map();
 
 function normalizedRaw(entry, maxLat) {
   const key = `${entry.id}@${maxLat}`;
-  if (!normalizationCache.has(key)) {
-    normalizationCache.set(key, areaNormalization(entry.raw, { maxLat }));
+  let scaled = normalizationCache.get(key);
+  if (!scaled) {
+    scaled = scaleRaw(entry.raw, areaNormalization(entry.raw, { maxLat }));
+    normalizationCache.set(key, scaled);
   }
-  return scaleRaw(entry.raw, normalizationCache.get(key));
+  return scaled;
 }
 
 /**
