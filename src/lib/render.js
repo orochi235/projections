@@ -1,6 +1,6 @@
 import { geoGraticule10, geoInterpolate, geoPath } from 'd3-geo';
 import { buildFrame, camera, locator } from './globe.js';
-import { diverging, divergingStep, PALETTE, shadeStep } from './palette.js';
+import { diverging, divergingStep, intensityStep, PALETTE, shadeStep } from './palette.js';
 
 const GRATICULE = geoGraticule10();
 
@@ -269,16 +269,25 @@ function renderGlobe(ctx, state) {
   if (!globe) return;
   const { mesh, field, layer, yaw, pitch } = globe;
   const view = { yaw, pitch };
+  const stride = mesh.columns + 1;
 
   if (layer === 'wrinkle') {
     const scale = Math.min(width / 4.6, height / 2.5);
-    const flat = (color) => () => color;
-    for (const [radii, color, cx, name] of [
-      [globe.radiiA, PALETTE.a, width * 0.27, globe.names.a],
-      [globe.radiiB, PALETTE.b, width * 0.73, globe.names.b],
+    for (const [radii, color, cx, name, excess] of [
+      [globe.radiiA, PALETTE.a, width * 0.27, globe.names.a, field.excessA],
+      [globe.radiiB, PALETTE.b, width * 0.73, globe.names.b, field.excessB],
     ]) {
       const cam = camera({ ...view, scale, cx, cy: height / 2 });
-      drawGlobe(ctx, { mesh, radii, cam, land, quadColor: flat(color) });
+      drawGlobe(ctx, {
+        mesh,
+        radii,
+        cam,
+        land,
+        quadColor: globe.strainScale
+          ? (q, p0) =>
+              intensityStep(color, (excess[p0] + excess[p0 + stride + 1]) / 2 / globe.strainScale)
+          : () => color,
+      });
       caption(ctx, name, cx, height / 2 + scale + 26, color);
     }
     return;
@@ -299,7 +308,6 @@ function renderGlobe(ctx, state) {
     return;
   }
 
-  const stride = mesh.columns + 1;
   drawGlobe(ctx, {
     mesh,
     radii: globe.radii,

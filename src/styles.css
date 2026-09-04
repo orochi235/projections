@@ -188,6 +188,18 @@ body {
   accent-color: var(--ink);
 }
 
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.toggle input {
+  accent-color: var(--ink);
+}
+
 .scores table {
   width: 100%;
   border-collapse: collapse;

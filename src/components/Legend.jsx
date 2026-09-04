@@ -1,4 +1,4 @@
-import { diverging } from '../lib/palette.js';
+import { diverging, intensityStep as intensity, PALETTE } from '../lib/palette.js';
 
 const STEPS = 40;
 
@@ -15,6 +15,38 @@ function DivergingBar({ range, unit, format }) {
       <span className="legend-end legend-end-a">{format(range)} {unit}</span>
     </div>
   );
+}
+
+function SequentialBar({ color, side, name, top }) {
+  return (
+    <div className="legend-scale">
+      <span className={`legend-end legend-end-${side}`}>{name}</span>
+      <div className="ramp" role="img" aria-label={`${name}: flat to ${top}`}>
+        {Array.from({ length: STEPS }, (_, index) => (
+          <i key={index} style={{ background: intensity(color, index / (STEPS - 1)) }} />
+        ))}
+      </div>
+      <span className="legend-end">{top}</span>
+    </div>
+  );
+}
+
+/**
+ * Turning the contrast up shrinks the full-scale value, and a ratio printed to
+ * one decimal collapses to `1.0` at both ends of the ramp. Under a tenth of a
+ * stop the ends are said as a percentage instead, which keeps a number there.
+ */
+function areaTicks(range) {
+  if (range < 0.1) {
+    return { unit: '', format: (t) => `${t > 0 ? '+' : ''}${((2 ** t - 1) * 100).toFixed(1)}%` };
+  }
+  return { unit: '\u00d7', format: (t) => (2 ** t).toFixed(2) };
+}
+
+/** Enough decimals that a narrowed angle scale does not read 0 at both ends. */
+function decimalsFor(range) {
+  if (range >= 5) return 0;
+  return range >= 0.5 ? 1 : 2;
 }
 
 export default function Legend({ mode, names, summary, areaRange, angleRange, probe, globe }) {
@@ -40,7 +72,7 @@ export default function Legend({ mode, names, summary, areaRange, angleRange, pr
 
         {mode === 'area' && (
           <>
-            <DivergingBar range={areaRange} unit="×" format={(t) => (2 ** t).toFixed(1)} />
+            <DivergingBar range={areaRange} {...areaTicks(areaRange)} />
             <p className="legend-keys">
               Magenta: <span className="key key-a">{names.a}</span> shows that ground larger. Teal:{' '}
               <span className="key key-b">{names.b}</span> does.
@@ -50,7 +82,7 @@ export default function Legend({ mode, names, summary, areaRange, angleRange, pr
 
         {mode === 'angle' && (
           <>
-            <DivergingBar range={angleRange} unit="°" format={(t) => Math.abs(t).toFixed(0)} />
+            <DivergingBar range={angleRange} unit="°" format={(t) => Math.abs(t).toFixed(decimalsFor(angleRange))} />
             <p className="legend-keys">
               Magenta: <span className="key key-a">{names.a}</span> bends local shapes more. Teal:{' '}
               <span className="key key-b">{names.b}</span> does.
@@ -67,7 +99,7 @@ export default function Legend({ mode, names, summary, areaRange, angleRange, pr
 
         {mode === 'globe' && globe?.layer === 'relief' && (
           <>
-            <DivergingBar range={areaRange} unit="×" format={(t) => (2 ** t).toFixed(1)} />
+            <DivergingBar range={areaRange} {...areaTicks(areaRange)} />
             <p className="legend-keys">
               Height is the same ratio the flat Area map colours. It bulges where{' '}
               <span className="key key-a">{names.a}</span> shows the ground larger and sinks where{' '}
@@ -77,14 +109,31 @@ export default function Legend({ mode, names, summary, areaRange, angleRange, pr
         )}
 
         {mode === 'globe' && globe?.layer === 'wrinkle' && (
-          <p className="legend-keys">
-            Each sheet laid back on the globe, ruffling wherever it is too big to fit. Worst excess{' '}
-            <b>{(globe.peak.a.strain * 100).toFixed(0)}%</b> on{' '}
-            <span className="key key-a">{names.a}</span>,{' '}
-            <b>{(globe.peak.b.strain * 100).toFixed(0)}%</b> on{' '}
-            <span className="key key-b">{names.b}</span>. Fold depth follows a scaling law, not a
-            cloth simulation, and flattens off where real material would fold over.
-          </p>
+          <>
+            {globe.strainScale > 0 && (
+              <>
+                <SequentialBar
+                  color={PALETTE.a}
+                  side="a"
+                  name={names.a}
+                  top={`${(globe.strainScale * 100).toFixed(0)}% too long`}
+                />
+                <SequentialBar color={PALETTE.b} side="b" name={names.b} top="" />
+              </>
+            )}
+            <p className="legend-keys">
+              Each sheet laid back on the globe, ruffling wherever it is too big to fit.{' '}
+              {globe.strainScale > 0
+                ? 'Colour is the local excess: white where the sheet lies on the sphere untouched. '
+                : ''}
+              Worst excess{' '}
+              <b>{(globe.peak.a.strain * 100).toFixed(0)}%</b> on{' '}
+              <span className="key key-a">{names.a}</span>,{' '}
+              <b>{(globe.peak.b.strain * 100).toFixed(0)}%</b> on{' '}
+              <span className="key key-b">{names.b}</span>. Fold depth follows a scaling law, not a
+              cloth simulation, and flattens off where real material would fold over.
+            </p>
+          </>
         )}
 
         {mode === 'globe' && globe?.layer === 'arcs' && (

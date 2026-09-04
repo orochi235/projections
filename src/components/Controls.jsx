@@ -27,8 +27,26 @@ function ProjectionPicker({ side, value, onChange }) {
 }
 
 export default function Controls({ settings, update, summary, onSwap }) {
-  const { idA, idB, mode, rotate, columns, morphT, globeLayer, exaggeration, wavelength, globeColumns } =
-    settings;
+  const {
+    idA,
+    idB,
+    mode,
+    rotate,
+    columns,
+    morphT,
+    globeLayer,
+    exaggeration,
+    wavelength,
+    globeColumns,
+    contrast,
+    shadeStrain,
+  } = settings;
+  const onWrinkle = mode === 'globe' && globeLayer === 'wrinkle';
+  const onScale =
+    mode === 'area' ||
+    mode === 'angle' ||
+    (mode === 'globe' && globeLayer === 'relief') ||
+    (onWrinkle && shadeStrain);
 
   return (
     <aside className="rail">
@@ -94,6 +112,30 @@ export default function Controls({ settings, update, summary, onSwap }) {
               onChange={(event) => update({ morphT: Number(event.target.value) })}
             />
             <output>{Math.round(morphT * 100)}%</output>
+          </label>
+        )}
+        {onWrinkle && (
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={shadeStrain}
+              onChange={(event) => update({ shadeStrain: event.target.checked })}
+            />
+            <span>Shade by strain</span>
+          </label>
+        )}
+        {onScale && (
+          <label className="slider">
+            <span>Contrast</span>
+            <input
+              type="range"
+              min="0"
+              max="4"
+              step="0.25"
+              value={Math.log2(contrast)}
+              onChange={(event) => update({ contrast: 2 ** Number(event.target.value) })}
+            />
+            <output>×{contrast < 10 ? contrast.toFixed(1) : contrast.toFixed(0)}</output>
           </label>
         )}
         <label className="slider">

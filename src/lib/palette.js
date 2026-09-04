@@ -77,3 +77,19 @@ export function shadeStep(color, factor) {
   }
   return cached;
 }
+
+// Each hue gets its own lazily built white-to-full ramp, quantized and cached
+// the same way the diverging one is.
+const intensityRamps = new Map();
+
+/** Sequential ramp from the neutral sheet to `color` over [0, 1]. */
+export function intensityStep(color, t) {
+  if (!Number.isFinite(t)) return PALETTE.sheetDeep;
+  let ramp = intensityRamps.get(color);
+  if (ramp === undefined) {
+    const toward = interpolateLab(PALETTE.sheet, color);
+    ramp = Array.from({ length: RAMP_STEPS }, (_, index) => toward(index / (RAMP_STEPS - 1)));
+    intensityRamps.set(color, ramp);
+  }
+  return ramp[Math.round(Math.max(0, Math.min(1, t)) * (RAMP_STEPS - 1))];
+}

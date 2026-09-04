@@ -20,6 +20,8 @@ const INITIAL = {
   columns: 72,
   morphT: 0.5,
   globeLayer: 'relief',
+  contrast: 1,
+  shadeStrain: true,
   tilt: 0.32,
   globeColumns: 180,
   exaggeration: 0.22,
@@ -35,6 +37,23 @@ function robustRange(values, floor) {
     .sort((x, y) => x - y);
   if (!magnitudes.length) return floor;
   return Math.max(floor, magnitudes[Math.floor(magnitudes.length * 0.95)]);
+}
+
+/**
+ * Full-scale strain for the wrinkle shading. Strain runs away at the poles of a
+ * cylindrical map — Mercator's worst vertex is several hundred percent — so a
+ * cap taken anywhere near the top of the range leaves the rest of the world
+ * white. The upper quartile puts the mid-latitudes on the ramp instead, and the
+ * contrast slider moves it from there.
+ */
+function robustStrain(field, count) {
+  const values = [];
+  for (let n = 0; n < count; n++) {
+    if (field.defined[n]) values.push(Math.max(field.excessA[n], field.excessB[n]));
+  }
+  if (!values.length) return 0.05;
+  values.sort((x, y) => x - y);
+  return Math.max(0.02, values[Math.floor(values.length * 0.75)]);
 }
 
 /**
@@ -90,13 +109,16 @@ export default function App() {
     [pair, settings.columns],
   );
 
+  // The robust cap fits the pair, but two well-behaved projections differ by so
+  // little that the whole world lands in the dead centre of the ramp. Contrast
+  // divides the full-scale value so those pairs can be opened up.
   const areaRange = useMemo(
-    () => robustRange(field.cells.map((cell) => cell.arealRatio), 0.25),
-    [field],
+    () => robustRange(field.cells.map((cell) => cell.arealRatio), 0.25) / settings.contrast,
+    [field, settings.contrast],
   );
   const angleRange = useMemo(
-    () => robustRange(field.cells.map((cell) => cell.angularDelta), 2),
-    [field],
+    () => robustRange(field.cells.map((cell) => cell.angularDelta), 2) / settings.contrast,
+    [field, settings.contrast],
   );
 
   const onGlobe = settings.mode === 'globe';
@@ -111,6 +133,11 @@ export default function App() {
   const measured = useMemo(
     () => (mesh ? globeField(mesh, pair.rawA, pair.rawB, pair.maxLat) : null),
     [mesh, pair.rawA, pair.rawB, pair.maxLat],
+  );
+
+  const strainCap = useMemo(
+    () => (mesh && measured ? robustStrain(measured, mesh.count) : 0.05),
+    [mesh, measured],
   );
 
   const globe = useMemo(() => {
@@ -128,6 +155,7 @@ export default function App() {
     if (globeLayer === 'wrinkle') {
       return {
         ...shared,
+        strainScale: settings.shadeStrain ? strainCap / settings.contrast : 0,
         radiiA: wrinkleRadii(mesh, measured, 'a', wavelength),
         radiiB: wrinkleRadii(mesh, measured, 'b', wavelength),
         peak: {
@@ -143,7 +171,7 @@ export default function App() {
       ...shared,
       radii: reliefRadii(mesh, measured, { range: areaRange, amplitude: exaggeration }),
     };
-  }, [mesh, measured, pair, areaRange, settings]);
+  }, [mesh, measured, pair, areaRange, strainCap, settings]);
 
   const probe = useMemo(() => {
     if (onGlobe || !pointer || !pair.projA.invert) return null;

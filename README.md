@@ -37,12 +37,17 @@ projection is the more distorted one at that spot, teal means the second.
 where the first map inflates the ground and pulls it in where the second does,
 which is the Area heat map as a shape. *Wrinkle* lays each sheet back onto the
 sphere: where it is too big to fit it has to ruffle, and since that is a property
-of one map rather than of a pair it draws two globes side by side. *Reading
+of one map rather than of a pair it draws two globes side by side; colour there is
+the local excess, white where the sheet lies on the sphere untouched. *Reading
 error* runs an arc from each graticule node to the ground the second map really
 shows there. Drag to turn it.
 
 Both heat maps are drawn in the *first* projection's plane, so they read as "here
 is where, on map A, the two disagree". Swapping the pair re-frames them.
+
+Every colour scale is fitted to the pair, which flattens two projections that are
+already close to each other. **Contrast** divides that full-scale value, up to
+×16, so a pair like Robinson against Natural Earth still has structure to show.
 
 ## What the folds mean
 
