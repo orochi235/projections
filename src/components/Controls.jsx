@@ -45,23 +45,6 @@ export default function Controls({ settings, update, summary, onSwap }) {
         </button>
       </section>
 
-      <section className="rail-block">
-        <h2>Read the difference as</h2>
-        <div className="modes">
-          {Object.entries(MODES).map(([key, entry]) => (
-            <button
-              key={key}
-              type="button"
-              className={key === mode ? 'mode is-on' : 'mode'}
-              onClick={() => update({ mode: key })}
-            >
-              {entry.label}
-            </button>
-          ))}
-        </div>
-        <p className="hint">{MODES[mode].hint}</p>
-      </section>
-
       {mode === 'globe' && (
         <section className="rail-block">
           <h2>Show on the sphere</h2>
@@ -80,6 +63,23 @@ export default function Controls({ settings, update, summary, onSwap }) {
           <p className="hint">{GLOBE_LAYERS.find(([key]) => key === globeLayer)[2]}</p>
         </section>
       )}
+
+      <section className="rail-block">
+        <h2>Read the difference as</h2>
+        <div className="modes">
+          {Object.entries(MODES).map(([key, entry]) => (
+            <button
+              key={key}
+              type="button"
+              className={key === mode ? 'mode is-on' : 'mode'}
+              onClick={() => update({ mode: key })}
+            >
+              {entry.label}
+            </button>
+          ))}
+        </div>
+        <p className="hint">{MODES[mode].hint}</p>
+      </section>
 
       <section className="rail-block">
         {mode === 'morph' && (

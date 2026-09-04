@@ -15,7 +15,7 @@ const RADIANS = Math.PI / 180;
 const INITIAL = {
   idA: 'mercator',
   idB: 'equalEarth',
-  mode: 'area',
+  mode: 'globe',
   rotate: 0,
   columns: 72,
   morphT: 0.5,
