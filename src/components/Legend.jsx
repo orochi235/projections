@@ -171,6 +171,15 @@ export default function Legend({ mode, names, summary, areaRange, angleRange, pr
           </>
         )}
 
+        {mode === 'globe' && globe?.layer === 'cloth' && (
+          <p className="legend-keys">
+            Each sheet relaxed onto the sphere rather than folded by a formula: every edge holds the
+            length it has on the flat map, the globe pulls the sheet back down, and stiffness resists
+            sharp turns. Nothing sets the fold spacing — it is what those three settle into, which is
+            why the folds gather where the material has nowhere else to go.
+          </p>
+        )}
+
         {mode === 'globe' && globe?.layer === 'arcs' && (
           <p className="legend-keys">
             Each arc starts where <span className="key key-a">{names.a}</span> puts a graticule node

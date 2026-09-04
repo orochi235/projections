@@ -10,6 +10,7 @@ const RELIEF_SOURCES = [
 const GLOBE_LAYERS = [
   ['relief', 'Relief', 'One measure of the pair as height. Bulges where the first map is the worse of the two.'],
   ['wrinkle', 'Wrinkle', 'Each sheet laid back on the globe. Where it is too big to fit, it ruffles.'],
+  ['cloth', 'Cloth', 'The same two sheets, but relaxed onto the sphere instead of folded by a formula. Watch them settle.'],
   ['arcs', 'Reading error', 'Where the second map really shows the ground the first one puts at each node.'],
 ];
 
@@ -47,14 +48,16 @@ export default function Controls({ settings, update, summary, onSwap }) {
     contrast,
     shadeStrain,
     reliefSource,
+    foldScale,
   } = settings;
   const onWrinkle = mode === 'globe' && globeLayer === 'wrinkle';
+  const onCloth = mode === 'globe' && globeLayer === 'cloth';
   const onRelief = mode === 'globe' && globeLayer === 'relief';
   const onScale =
     mode === 'area' ||
     mode === 'angle' ||
     onRelief ||
-    (onWrinkle && shadeStrain);
+    ((onWrinkle || onCloth) && shadeStrain);
 
   return (
     <aside className="rail">
@@ -142,7 +145,7 @@ export default function Controls({ settings, update, summary, onSwap }) {
             <output>{Math.round(morphT * 100)}%</output>
           </label>
         )}
-        {onWrinkle && (
+        {(onWrinkle || onCloth) && (
           <label className="toggle">
             <input
               type="checkbox"
@@ -190,6 +193,20 @@ export default function Controls({ settings, update, summary, onSwap }) {
               onChange={(event) => update({ exaggeration: Number(event.target.value) })}
             />
             <output>{Math.round(exaggeration * 100)}%</output>
+          </label>
+        )}
+        {onCloth && (
+          <label className="slider">
+            <span>Fold scale</span>
+            <input
+              type="range"
+              min="0.1"
+              max="0.5"
+              step="0.05"
+              value={foldScale}
+              onChange={(event) => update({ foldScale: Number(event.target.value) })}
+            />
+            <output>{foldScale.toFixed(2)}</output>
           </label>
         )}
         {mode === 'globe' && globeLayer === 'wrinkle' && (

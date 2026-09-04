@@ -86,9 +86,11 @@ export function camera({ yaw = 0, pitch = 0, scale = 1, cx = 0, cy = 0 }) {
  * Transforms the mesh for one camera and returns the quads worth drawing.
  *
  * `order` holds quad indices sorted back to front, so a painter's-algorithm
- * pass can walk it straight through.
+ * pass can walk it straight through. A caller that has moved its vertices off
+ * their own meridians — a draped sheet gathers sideways, not just outward —
+ * passes `points` instead of leaning on `radii`.
  */
-export function buildFrame(mesh, radii, cam) {
+export function buildFrame(mesh, radii, cam, points) {
   const { columns, rows, count, ux, uy, uz } = mesh;
 
   const vx = new Float64Array(count);
@@ -99,8 +101,9 @@ export function buildFrame(mesh, radii, cam) {
   const point = [0, 0, 0];
 
   for (let n = 0; n < count; n++) {
-    const r = radii[n];
-    cam.view(ux[n] * r, uy[n] * r, uz[n] * r, point);
+    const r = radii ? radii[n] : 1;
+    if (points) cam.view(points.x[n], points.y[n], points.z[n], point);
+    else cam.view(ux[n] * r, uy[n] * r, uz[n] * r, point);
     vx[n] = point[0];
     vy[n] = point[1];
     vz[n] = point[2];
@@ -169,9 +172,15 @@ export function quadCorners(frame, q) {
  * radius off it by bilinear interpolation so coastlines follow the displaced
  * ground instead of floating over it. `z` is negative behind the horizon.
  */
-export function locator(mesh, radii, cam) {
+export function locator(mesh, radii, cam, points) {
   const { columns, rows } = mesh;
   const point = [0, 0, 0];
+
+  const corner = (p0, fu, fv, axis) =>
+    axis[p0] * (1 - fu) * (1 - fv) +
+    axis[p0 + 1] * fu * (1 - fv) +
+    axis[p0 + columns + 1] * (1 - fu) * fv +
+    axis[p0 + columns + 2] * fu * fv;
 
   return (lon, lat) => {
     const u = ((lon + 180) / 360) * columns;
@@ -181,11 +190,12 @@ export function locator(mesh, radii, cam) {
     const fu = u - i;
     const fv = v - j;
     const p0 = j * (columns + 1) + i;
-    const r =
-      radii[p0] * (1 - fu) * (1 - fv) +
-      radii[p0 + 1] * fu * (1 - fv) +
-      radii[p0 + columns + 1] * (1 - fu) * fv +
-      radii[p0 + columns + 2] * fu * fv;
+    if (points) {
+      cam.view(corner(p0, fu, fv, points.x), corner(p0, fu, fv, points.y), corner(p0, fu, fv, points.z), point);
+      return { x: cam.screenX(point[0]), y: cam.screenY(point[1]), z: point[2] };
+    }
+
+    const r = corner(p0, fu, fv, radii);
 
     const phi = lat * RADIANS;
     const lambda = lon * RADIANS;

@@ -182,8 +182,8 @@ function strokeOnSphere(ctx, geometry, locate, { color, width, alpha }) {
 }
 
 /** One globe: painter's-algorithm quads, then coastline and graticule on top. */
-function drawGlobe(ctx, { mesh, radii, cam, land, quadColor }) {
-  const frame = buildFrame(mesh, radii, cam);
+function drawGlobe(ctx, { mesh, radii, cam, land, quadColor, points }) {
+  const frame = buildFrame(mesh, radii, cam, points);
   const { sx, sy, order, shade: lambert, columns } = frame;
   const stride = columns + 1;
 
@@ -204,7 +204,7 @@ function drawGlobe(ctx, { mesh, radii, cam, land, quadColor }) {
     ctx.fill();
   }
 
-  const locate = locator(mesh, radii, cam);
+  const locate = locator(mesh, radii, cam, points);
   strokeOnSphere(ctx, GRATICULE, locate, { color: PALETTE.ink, width: 0.4, alpha: 0.14 });
   if (land) strokeOnSphere(ctx, land, locate, { color: PALETTE.ink, width: 0.75, alpha: 0.5 });
   return locate;
@@ -271,16 +271,17 @@ function renderGlobe(ctx, state) {
   const view = { yaw, pitch };
   const stride = mesh.columns + 1;
 
-  if (layer === 'wrinkle') {
+  if (layer === 'wrinkle' || layer === 'cloth') {
     const scale = Math.min(width / 4.6, height / 2.5);
-    for (const [radii, color, cx, name, excess] of [
-      [globe.radiiA, PALETTE.a, width * 0.27, globe.names.a, field.excessA],
-      [globe.radiiB, PALETTE.b, width * 0.73, globe.names.b, field.excessB],
+    for (const [radii, color, cx, name, excess, points] of [
+      [globe.radiiA, PALETTE.a, width * 0.27, globe.names.a, field.excessA, globe.pointsA],
+      [globe.radiiB, PALETTE.b, width * 0.73, globe.names.b, field.excessB, globe.pointsB],
     ]) {
       const cam = camera({ ...view, scale, cx, cy: height / 2 });
       drawGlobe(ctx, {
         mesh,
         radii,
+        points,
         cam,
         land,
         quadColor: globe.strainScale
