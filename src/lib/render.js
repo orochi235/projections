@@ -313,6 +313,11 @@ function renderGlobe(ctx, state) {
 }
 
 export const MODES = {
+  globe: {
+    label: 'Globe',
+    hint: 'The same comparison, put back on the sphere.',
+    render: renderGlobe,
+  },
   outlines: {
     label: 'Outlines',
     hint: 'Both maps drawn on top of each other.',
@@ -339,11 +344,6 @@ export const MODES = {
     label: 'Morph',
     hint: 'Bend the first map into the second.',
     render: renderMorph,
-  },
-  globe: {
-    label: 'Globe',
-    hint: 'The same comparison, put back on the sphere.',
-    render: renderGlobe,
   },
 };
 
