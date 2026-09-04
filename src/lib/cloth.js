@@ -4,38 +4,94 @@
  *
  * `relief.js` gives every vertex a fold depth from its own strain and nothing
  * else, so the folds come out as a regular sinusoid that never bunches and
- * never redistributes. Here each edge of the mesh carries the length it has on
- * the flat map, the sheet is pressed against the sphere, and the folds are
- * whatever satisfies both. Nothing sets their wavelength directly: adhesion
+ * never redistributes. That is where this starts — `seedRadii` below — and the
+ * relaxation takes it from there: each edge of the mesh carries the length it
+ * has on the flat map, the sheet is pressed against the sphere, and the folds
+ * are whatever satisfies both. Nothing sets their wavelength directly: adhesion
  * charges for standing off the globe, bending charges for turning sharply, and
  * the fold scale that comes out is the square root of their ratio.
  */
+
+import { amplitudeFor, sheetField } from './relief.js';
 
 const RADIANS = Math.PI / 180;
 
 // The sheet can lie on the globe or stand off it, never sink into it, so all of
 // the excess has to go outward — which is also why adhesion alone would answer
-// a too-long sheet by inflating the whole sphere. The noise below is what lets
-// folding win that argument; without it a symmetric sheet has no reason to pick
-// one shape over the other and just balloons.
+// a too-long sheet by inflating the whole sphere. The seed below is what lets
+// folding win that argument; a symmetric sheet started flat on the globe has no
+// reason to pick one shape over the other and just balloons.
 //
 // Adhesion is low on purpose. Anything stickier keeps settling long after the
 // folds have formed and irons them back out, absorbing the excess as a few
 // percent of stretch everywhere instead — the same 5% edge error, with nothing
 // left to look at.
-const SEED_NOISE = 0.004;
 const ADHESION = 0.006;
 
 // How hard the sheet resists being stretched, against the full strength it
 // resists being compressed.
 const STRETCH_GIVE = 0.15;
 
+// A sinusoid needs about this many cells to read as a fold rather than as the
+// lattice's own zigzag, so the seed is never asked for one finer.
+const CELLS_PER_FOLD = 4;
 
+/**
+ * Where the sheet starts: the analytic fold pattern, not noise.
+ *
+ * A relaxation started flat on the globe knows only edge lengths, so it has to
+ * discover a fold direction it cannot measure, and it settles for shear. The
+ * wrinkle globe computes that direction in closed form. Seeding from it hands
+ * the solver a pattern already at the right scale carrying roughly the right
+ * amount of material, leaving it only to redistribute.
+ *
+ * Two differences from `wrinkleRadii`, both because that globe and this one are
+ * not looking at the same sheet:
+ *
+ * - **The excess is the printed sheet's, not the normalized map's.** The
+ *   wrinkle globe measures a map scaled so the world covers the sphere's area;
+ *   `restLengths` prints this one at the tightest scale that never stretches,
+ *   which is `scale` times bigger. Under that scale 96% of Equal Earth is too
+ *   long in *both* directions at once, by 190% on average along the parallel —
+ *   so the Tissot major axis is not where the material is, it is merely where
+ *   the most of it is, and a seed built on `a - 1` is an order of magnitude too
+ *   shallow to survive the first pass.
+ * - **Along the mesh's axes, not the Tissot ones.** Every constraint the solver
+ *   holds is an edge, and its edges run east and south. A carrier per direction,
+ *   summed, puts each one's arc length under a fold that varies only along it —
+ *   so the seed's material budget is exactly the budget the edge lengths ask
+ *   for, rather than a rotated approximation of it.
+ *
+ * The wavelength is the mesh's, not the wrinkle globe's: the fold scale the
+ * relaxation settles on is sqrt(bending/adhesion) cells across, so seeding at
+ * anything else asks it to move the folds before it can refine them.
+ */
+function seedRadii(mesh, raw, maxLat, scale, bending, adhesion) {
+  const { columns, rows, count, lat } = mesh;
+  const radii = new Float64Array(count).fill(1);
+  if (!(scale > 0)) return radii;
 
-/** Deterministic per-vertex noise, so the same pair always drapes the same. */
-function jitter(n) {
-  const x = Math.sin(n * 12.9898) * 43758.5453;
-  return (x - Math.floor(x)) * 2 - 1;
+  const sheet = sheetField(mesh, raw, maxLat);
+  const cells = Math.max(CELLS_PER_FOLD, Math.sqrt(bending / adhesion));
+  const eastFolds = Math.max(1, Math.min(Math.round(columns / cells), Math.floor(columns / CELLS_PER_FOLD)));
+  const northFolds = Math.max(1, Math.min(Math.round(rows / cells), Math.floor(rows / CELLS_PER_FOLD)));
+  const northLength = Math.PI / northFolds;
+
+  for (let n = 0; n < count; n++) {
+    if (!sheet.defined[n]) continue;
+    const phi = lat[n] * RADIANS;
+    const lambda = mesh.lon[n] * RADIANS;
+
+    // Folds are a fixed count around the globe, so they crowd together as the
+    // parallels shorten and the material each one has to absorb shrinks with
+    // them — which is what gathered cloth does, and what keeps the seam closed.
+    const eastLength = (2 * Math.PI * Math.cos(phi)) / eastFolds;
+    const east = amplitudeFor(Math.max(scale * sheet.parallel[n] - 1, 0), eastLength);
+    const north = amplitudeFor(Math.max(scale * sheet.meridian[n] - 1, 0), northLength);
+
+    radii[n] = 1 + east * Math.cos(eastFolds * lambda) + north * Math.cos(2 * northFolds * phi);
+  }
+  return radii;
 }
 
 /**
@@ -108,7 +164,7 @@ function restLengths(mesh, raw, maxLat) {
       for (let e = 0; e < lengths.length; e++) lengths[e] *= scale;
     }
   }
-  return { east, south, down, up, live };
+  return { east, south, down, up, live, scale };
 }
 
 /**
@@ -131,13 +187,14 @@ function restLengths(mesh, raw, maxLat) {
 export function createDrape(mesh, raw, maxLat, { bending = 0.3, adhesion = ADHESION } = {}) {
   const { columns, rows, count, ux, uy, uz } = mesh;
   const stride = columns + 1;
-  const { east, south, down, up, live } = restLengths(mesh, raw, maxLat);
+  const { east, south, down, up, live, scale } = restLengths(mesh, raw, maxLat);
 
+  const seed = seedRadii(mesh, raw, maxLat, scale, bending, adhesion);
   const x = new Float64Array(count);
   const y = new Float64Array(count);
   const z = new Float64Array(count);
   for (let n = 0; n < count; n++) {
-    const r = 1 + (live[n] ? SEED_NOISE * jitter(n) : 0);
+    const r = live[n] ? seed[n] : 1;
     x[n] = ux[n] * r;
     y[n] = uy[n] * r;
     z[n] = uz[n] * r;

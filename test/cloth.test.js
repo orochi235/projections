@@ -33,8 +33,8 @@ test('the sheet lies on the globe and never sinks into it', () => {
   assert.ok(deepest > -0.02, `something sank ${deepest.toFixed(3)} into the globe`);
 });
 
-test('the excess gathers where the map is worst', () => {
-  const points = drapeSheet(mesh, mercator.rawA, mercator.maxLat, { iterations: 200 });
+test('the excess gathers where the sheet has the most to shed', () => {
+  const points = drapeSheet(mesh, mercator.rawA, mercator.maxLat, { iterations: 60 });
   const off = standoff(mesh, points);
 
   const bandMean = (from, to) => {
@@ -49,11 +49,17 @@ test('the excess gathers where the map is worst', () => {
     return total / seen;
   };
 
-  // Mercator's sheet is a few hundred percent too long above 70N and close to
-  // taut at the equator. The margin is not larger because a sheet allowed to
-  // stretch also lifts slightly where it is merely tight.
+  // Printed at the scale that never stretches, Mercator is taut along the
+  // equator and hundreds of percent too long by the mid-latitudes. Not the
+  // poles: fold depth is the arc-length law's (L/pi)*sqrt(e), and the parallels
+  // are short enough up there that the excess goes into many fine folds rather
+  // than a few deep ones — which is what gathered cloth does.
   assert.ok(
-    bandMean(70, 85) > 1.5 * bandMean(0, 20),
+    bandMean(40, 60) > 2 * bandMean(0, 20),
+    `mid-latitude ${bandMean(40, 60).toFixed(4)} vs equatorial ${bandMean(0, 20).toFixed(4)}`,
+  );
+  assert.ok(
+    bandMean(70, 85) > bandMean(0, 20),
     `polar ${bandMean(70, 85).toFixed(4)} vs equatorial ${bandMean(0, 20).toFixed(4)}`,
   );
 });

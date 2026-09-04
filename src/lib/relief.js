@@ -34,40 +34,21 @@ export const MAX_SLOPE = 2.2;
  * every camera angle.
  */
 export function globeField(mesh, rawA, rawB, maxLat) {
-  const { count, lon, lat } = mesh;
-  const arealRatio = new Float64Array(count);
-  const angularDelta = new Float64Array(count);
-  const strainDelta = new Float64Array(count);
-  const excessA = new Float64Array(count);
-  const excessB = new Float64Array(count);
-  const thetaA = new Float64Array(count);
-  const thetaB = new Float64Array(count);
-  const anisoA = new Float64Array(count);
-  const anisoB = new Float64Array(count);
+  const { count } = mesh;
+  const a = sheetField(mesh, rawA, maxLat);
+  const b = sheetField(mesh, rawB, maxLat);
+
+  const arealRatio = new Float64Array(count).fill(NaN);
+  const angularDelta = new Float64Array(count).fill(NaN);
+  const strainDelta = new Float64Array(count).fill(NaN);
   const defined = new Uint8Array(count);
 
   for (let n = 0; n < count; n++) {
-    arealRatio[n] = NaN;
-    angularDelta[n] = NaN;
-    strainDelta[n] = NaN;
-    if (Math.abs(lat[n]) > maxLat) continue;
-
-    const lambda = lon[n] * RADIANS;
-    const phi = lat[n] * RADIANS;
-    const localA = distortion(rawA, lambda, phi);
-    const localB = distortion(rawB, lambda, phi);
-    if (!localA || !localB) continue;
-
+    if (!a.defined[n] || !b.defined[n]) continue;
     defined[n] = 1;
-    arealRatio[n] = Math.log2(localA.areal / localB.areal);
-    angularDelta[n] = localA.angular - localB.angular;
-    excessA[n] = Math.max(localA.a - 1 - STRAIN_FLOOR, 0);
-    excessB[n] = Math.max(localB.a - 1 - STRAIN_FLOOR, 0);
-    strainDelta[n] = excessA[n] - excessB[n];
-    thetaA[n] = localA.theta;
-    thetaB[n] = localB.theta;
-    anisoA[n] = (localA.a - localA.b) / (localA.a + localA.b);
-    anisoB[n] = (localB.a - localB.b) / (localB.a + localB.b);
+    arealRatio[n] = Math.log2(a.areal[n] / b.areal[n]);
+    angularDelta[n] = a.angular[n] - b.angular[n];
+    strainDelta[n] = a.excess[n] - b.excess[n];
   }
 
   capPoles(mesh, arealRatio, defined);
@@ -77,14 +58,49 @@ export function globeField(mesh, rawA, rawB, maxLat) {
     arealRatio,
     angularDelta,
     strainDelta,
-    excessA,
-    excessB,
-    thetaA,
-    thetaB,
-    anisoA,
-    anisoB,
+    excessA: a.excess,
+    excessB: b.excess,
+    thetaA: a.theta,
+    thetaB: b.theta,
+    anisoA: a.aniso,
+    anisoB: b.aniso,
     defined,
   };
+}
+
+/**
+ * One projection measured at every mesh vertex. `globeField` runs it twice and
+ * subtracts; the cloth layer runs it once, because a sheet being draped has no
+ * opinion about what it is being compared against, and reads `meridian` and
+ * `parallel` rather than the Tissot axes because those are the directions its
+ * own mesh edges run in.
+ */
+export function sheetField(mesh, raw, maxLat) {
+  const { count, lon, lat } = mesh;
+  const areal = new Float64Array(count);
+  const angular = new Float64Array(count);
+  const meridian = new Float64Array(count);
+  const parallel = new Float64Array(count);
+  const excess = new Float64Array(count);
+  const theta = new Float64Array(count);
+  const aniso = new Float64Array(count);
+  const defined = new Uint8Array(count);
+
+  for (let n = 0; n < count; n++) {
+    if (Math.abs(lat[n]) > maxLat) continue;
+    const local = distortion(raw, lon[n] * RADIANS, lat[n] * RADIANS);
+    if (!local) continue;
+
+    defined[n] = 1;
+    areal[n] = local.areal;
+    angular[n] = local.angular;
+    meridian[n] = local.h;
+    parallel[n] = local.k;
+    excess[n] = Math.max(local.a - 1 - STRAIN_FLOOR, 0);
+    theta[n] = local.theta;
+    aniso[n] = (local.a - local.b) / (local.a + local.b);
+  }
+  return { areal, angular, meridian, parallel, excess, theta, aniso, defined };
 }
 
 /**
@@ -167,12 +183,13 @@ export function wrinkleRadii(mesh, field, side, wavelength) {
   const excess = side === 'a' ? field.excessA : field.excessB;
   const theta = side === 'a' ? field.thetaA : field.thetaB;
   const aniso = side === 'a' ? field.anisoA : field.anisoB;
+  const { defined } = field;
 
   const radii = new Float64Array(mesh.count).fill(1);
   const northFrequency = (2 * Math.PI) / wavelength;
 
   for (let n = 0; n < mesh.count; n++) {
-    if (!field.defined[n] || excess[n] <= 0) continue;
+    if (!defined[n] || excess[n] <= 0) continue;
 
     const phi = mesh.lat[n] * RADIANS;
     const lambda = mesh.lon[n] * RADIANS;

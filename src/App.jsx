@@ -110,9 +110,10 @@ function readingErrors(pair, step = 15) {
 // Passes per animation frame, and the total each sheet gets. The drape is shown
 // forming and then held: the relaxation does not converge (see cloth.js), and
 // what runs past the budget is the solver arguing with itself, which reads as a
-// globe that never stops twitching.
-const DRAPE_PASSES = 6;
-const DRAPE_BUDGET = 200;
+// globe that never stops twitching. The budget is a third of what it was
+// because the sheet no longer starts from static — it starts folded.
+const DRAPE_PASSES = 3;
+const DRAPE_BUDGET = 60;
 const CLOTH_COLUMNS = 96;
 
 
