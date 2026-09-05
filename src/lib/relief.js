@@ -180,10 +180,18 @@ export function reliefRadii(mesh, values, { range, amplitude }) {
  * ruffles.
  */
 export function wrinkleRadii(mesh, field, side, wavelength) {
-  const excess = side === 'a' ? field.excessA : field.excessB;
-  const theta = side === 'a' ? field.thetaA : field.thetaB;
-  const aniso = side === 'a' ? field.anisoA : field.anisoB;
-  const { defined } = field;
+  return sheetWrinkle(
+    mesh,
+    side === 'a'
+      ? { excess: field.excessA, theta: field.thetaA, aniso: field.anisoA, defined: field.defined }
+      : { excess: field.excessB, theta: field.thetaB, aniso: field.anisoB, defined: field.defined },
+    wavelength,
+  );
+}
+
+/** The same law against a single `sheetField`, for anything looking at one map. */
+export function sheetWrinkle(mesh, sheet, wavelength) {
+  const { excess, theta, aniso, defined } = sheet;
 
   const radii = new Float64Array(mesh.count).fill(1);
   const northFrequency = (2 * Math.PI) / wavelength;
