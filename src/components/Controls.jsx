@@ -62,9 +62,19 @@ export default function Controls({ settings, update, summary, onSwap }) {
     reliefSource,
     foldScale,
     morphBare,
+    studCount,
     patchSite,
     patchFolds,
   } = settings;
+  // Sampling drives the lattice the scalar modes colour and the globe layers
+  // displace. The cloth and patch layers carry their own mesh and the outline
+  // and morph modes never touch one, so leaving the slider on those is a
+  // control that does nothing.
+  const samples =
+    mode === 'globe'
+      ? ['relief', 'wrinkle', 'arcs'].includes(globeLayer)
+      : ['displacement', 'area', 'angle'].includes(mode);
+
   const onWrinkle = mode === 'globe' && globeLayer === 'wrinkle';
   const onCloth = mode === 'globe' && globeLayer === 'cloth';
   const onRelief = mode === 'globe' && globeLayer === 'relief';
@@ -285,6 +295,21 @@ export default function Controls({ settings, update, summary, onSwap }) {
             <output>{(wavelength * (180 / Math.PI)).toFixed(0)}°</output>
           </label>
         )}
+        {mode === 'morph' && (
+          <label className="slider">
+            <span>Studs</span>
+            <input
+              type="range"
+              min="200"
+              max="4000"
+              step="200"
+              value={studCount}
+              onChange={(event) => update({ studCount: Number(event.target.value) })}
+            />
+            <output>{studCount.toLocaleString('en-US')}</output>
+          </label>
+        )}
+        {samples && (
         <label className="slider">
           <span>Sampling</span>
           {mode === 'globe' ? (
@@ -310,6 +335,7 @@ export default function Controls({ settings, update, summary, onSwap }) {
             {mode === 'globe' ? `${globeColumns}×${globeColumns / 2}` : `${columns}×${columns / 2}`}
           </output>
         </label>
+        )}
       </section>
 
       {summary && (

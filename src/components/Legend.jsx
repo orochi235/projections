@@ -1,6 +1,39 @@
 import { diverging, intensityStep as intensity, PALETTE } from '../lib/palette.js';
+import { studArea } from '../lib/render.js';
 
 const STEPS = 40;
+
+/** To the nearest thousand, grouped. These are areas, not measurements. */
+function thousands(value) {
+  return (Math.round(value / 1000) * 1000).toLocaleString('en-US');
+}
+
+// Square kilometres mean nothing to most readers on their own, and the stud
+// count is a slider, so the comparison has to be looked up rather than written
+// down. Spans the range the slider can reach.
+const COUNTRIES = [
+  [120540, 'North Korea'],
+  [176215, 'Uruguay'],
+  [238397, 'Romania'],
+  [301340, 'Italy'],
+  [357596, 'Germany'],
+  [447400, 'Uzbekistan'],
+  [505990, 'Spain'],
+  [637657, 'Somalia'],
+  [756102, 'Chile'],
+  [1002450, 'Egypt'],
+  [1284000, 'Chad'],
+  [1861484, 'Sudan'],
+  [2344858, 'the Congo'],
+  [2724900, 'Kazakhstan'],
+];
+
+/** The country whose area is the closest match, in ratio rather than in km². */
+function nearestCountry(km2) {
+  return COUNTRIES.reduce((best, entry) =>
+    Math.abs(Math.log(entry[0] / km2)) < Math.abs(Math.log(best[0] / km2)) ? entry : best,
+  )[1];
+}
 
 function DivergingBar({ range, unit, format }) {
   return (
@@ -75,7 +108,7 @@ function reliefTicks(source, range) {
   return areaTicks(range);
 }
 
-export default function Legend({ mode, names, summary, areaRange, angleRange, probe, globe }) {
+export default function Legend({ mode, names, summary, areaRange, angleRange, probe, globe, studCount }) {
   return (
     <footer className="legend">
       <div className="legend-body">
@@ -117,12 +150,19 @@ export default function Legend({ mode, names, summary, areaRange, angleRange, pr
         )}
 
         {mode === 'morph' && (
-          <p className="legend-keys">
-            Drag the blend to bend <span className="key key-a">{names.a}</span> into{' '}
-            <span className="key key-b">{names.b}</span>. The dots sit on equal patches of real
-            ground, so they crowd where a map shrinks the world and thin out where it inflates it —
-            an equal-area map spreads them evenly.
-          </p>
+          <>
+            <p className="legend-keys">
+              <span className="stud-swatch" aria-hidden="true" /> One dot covers{' '}
+              <b>{thousands(studArea(studCount).km2)} km²</b> of ground —{' '}
+              <b>{thousands(studArea(studCount).mi2)} sq mi</b>, about the size of{' '}
+              {nearestCountry(studArea(studCount).km2)}.
+            </p>
+            <p className="legend-keys">
+              Drag the blend to bend <span className="key key-a">{names.a}</span> into{' '}
+              <span className="key key-b">{names.b}</span>. The dots crowd where a map shrinks the
+              world and thin out where it inflates it — an equal-area map spreads them evenly.
+            </p>
+          </>
         )}
 
         {mode === 'globe' && globe?.layer === 'relief' && (

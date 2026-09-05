@@ -291,6 +291,18 @@ body {
   font-weight: 500;
 }
 
+/* The stud as it is drawn on the canvas, so the legend and the map agree. */
+.stud-swatch {
+  display: inline-block;
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: var(--ink);
+  opacity: 0.55;
+  vertical-align: 0.05rem;
+  margin-right: 0.15rem;
+}
+
 .key {
   font-weight: 600;
   color: var(--tick, var(--ink));

@@ -32,6 +32,39 @@ function fillGeometry(ctx, projection, geometry, { color, alpha = 1 }) {
   ctx.restore();
 }
 
+const clampCache = new Map();
+
+/**
+ * Land held inside the compared domain.
+ *
+ * The domain stops at +/-maxLat and the projection is fitted to it, but the
+ * coastline is drawn straight through and Antarctica runs to the pole — which
+ * Mercator sends to infinity, so it spills past the frame in a shape that
+ * changes wildly as the central meridian moves and the antimeridian cut falls
+ * somewhere else through the ring. Clamping the latitudes lays the part below
+ * the domain along its edge, which is where a map clipped at 84 degrees puts it
+ * anyway. It is not a true polygon clip, and does not need to be: no coastline
+ * crosses that parallel and comes back.
+ */
+function withinDomain(land, maxLat) {
+  const key = maxLat;
+  let held = clampCache.get(key);
+  if (held) return held;
+
+  const hold = (position) => [position[0], Math.max(-maxLat, Math.min(maxLat, position[1]))];
+  const walk = (input) => {
+    if (Array.isArray(input)) return input.length && Array.isArray(input[0]) ? input.map(walk) : hold(input);
+    if (input.type === 'FeatureCollection') return { ...input, features: input.features.map(walk) };
+    if (input.type === 'Feature') return { ...input, geometry: walk(input.geometry) };
+    if (input.type === 'GeometryCollection') return { ...input, geometries: input.geometries.map(walk) };
+    return { ...input, coordinates: walk(input.coordinates) };
+  };
+
+  held = walk(land);
+  clampCache.set(key, held);
+  return held;
+}
+
 /** Faint land and graticule, used as the substrate under the quantitative modes. */
 function drawBase(ctx, projection, land, domain, { landAlpha = 0.5 } = {}) {
   if (land) fillGeometry(ctx, projection, land, { color: PALETTE.land, alpha: landAlpha });
@@ -133,20 +166,51 @@ function renderScalar(ctx, { pair, field, land }, { value, range }) {
  * itself. A lattice would give the same count and add its own moiré; the
  * golden angle spaces them without one.
  */
-const STUDS = (() => {
-  const count = 1400;
+// Earth's surface, for saying how much ground one stud stands for.
+const EARTH_KM2 = 510_072_000;
+const EARTH_MI2 = 196_940_000;
+
+const studCache = new Map();
+
+/**
+ * Studs, spread evenly by area over the globe rather than by longitude and
+ * latitude. Equal ground per dot is the whole point: wherever a map inflates
+ * the ground the dots thin out and wherever it shrinks it they crowd together,
+ * and the morph is that crowding rearranging itself. A lattice would give the
+ * same count and add its own moiré; the golden angle spaces them without one.
+ */
+function studLattice(count) {
+  let points = studCache.get(count);
+  if (points) return points;
+
   const golden = Math.PI * (3 - Math.sqrt(5));
-  const points = [];
+  points = [];
   for (let i = 0; i < count; i++) {
     const lat = Math.asin(1 - (2 * (i + 0.5)) / count) * (180 / Math.PI);
     const lon = (((i * golden * (180 / Math.PI)) % 360) + 540) % 360 - 180;
     points.push([lon, lat]);
   }
+  studCache.set(count, points);
   return points;
-})();
+}
+
+/**
+ * The ground one stud stands for. Derived from the count rather than written
+ * down beside it, so the legend cannot go stale when the count moves. The
+ * lattice divides the whole sphere evenly, so this holds for every stud
+ * including the ones a clipped map never draws.
+ */
+export function studArea(count) {
+  return { km2: EARTH_KM2 / count, mi2: EARTH_MI2 / count };
+}
+
+/** Dot size tracks the ground behind it, so total ink stays put as count moves. */
+function studRadius(count) {
+  return Math.max(0.7, Math.min(3.5, 1.5 * Math.sqrt(1400 / count)));
+}
 
 /** One projection bent into the other. Motion makes small differences obvious. */
-function renderMorph(ctx, { pair, land, morphT, morphBare }) {
+function renderMorph(ctx, { pair, land, morphT, morphBare, studCount }) {
   const projection = pair.morph(morphT);
   if (morphBare) {
     strokeGeometry(ctx, projection, pair.domain, { color: PALETTE.inkSoft, width: 1, alpha: 0.55 });
@@ -158,12 +222,13 @@ function renderMorph(ctx, { pair, land, morphT, morphBare }) {
   ctx.save();
   ctx.fillStyle = PALETTE.ink;
   ctx.globalAlpha = 0.55;
-  for (const [lon, lat] of STUDS) {
+  const radius = studRadius(studCount);
+  for (const [lon, lat] of studLattice(studCount)) {
     if (Math.abs(lat) > pair.maxLat) continue;
     const at = projection([lon, lat]);
     if (!at || !Number.isFinite(at[0]) || !Number.isFinite(at[1])) continue;
     ctx.beginPath();
-    ctx.arc(at[0], at[1], 1.5, 0, 2 * Math.PI);
+    ctx.arc(at[0], at[1], radius, 0, 2 * Math.PI);
     ctx.fill();
   }
   ctx.restore();
@@ -475,5 +540,6 @@ export const MODES = {
 export function draw(ctx, width, height, state) {
   clear(ctx, width, height);
   const mode = MODES[state.mode] ?? MODES.outlines;
-  mode.render(ctx, { ...state, width, height });
+  const land = state.land && state.pair ? withinDomain(state.land, state.pair.maxLat) : state.land;
+  mode.render(ctx, { ...state, land, width, height });
 }
