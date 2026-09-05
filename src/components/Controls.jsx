@@ -246,7 +246,7 @@ export default function Controls({ settings, update, summary, onSwap }) {
             <span>Shrink to equal area</span>
           </label>
         )}
-        {mode === 'morph' && morphCells && morphTiles && (
+        {mode === 'morph' && morphCells && morphTiles && morphDots && (
           <label className="toggle toggle-nested">
             <input
               type="checkbox"

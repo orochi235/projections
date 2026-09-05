@@ -370,10 +370,14 @@ function drawCells(ctx, projection, cells, { maxLat, shrink: shrinking, anchor, 
     const moments = ringMoments(points);
     if (!moments) return;
     // A projection does not send a cell's centroid to its generating point, and
-    // the gap between them is how hard it is bending that patch. Hanging the
-    // tile on the stud puts the dot dead centre and makes the correspondence
-    // plain; leaving it on the centroid keeps that gap on show.
-    const site = anchor ? projection(feature.properties.site) : null;
+    // the gap between them is how hard it is bending that patch. Hanging a tile
+    // on the stud puts the dot dead centre and makes the correspondence plain;
+    // leaving it on the centroid keeps that gap on show.
+    //
+    // Only ever a tile, though. A cell at full size belongs where it is: moving
+    // it onto its stud slides it off its neighbours and the mosaic stops
+    // tiling, worst at the poles where the two are furthest apart.
+    const site = anchor && shrinking ? projection(feature.properties.site) : null;
     const tile = {
       points,
       land: shore ? shore[index] : 0,
@@ -551,7 +555,9 @@ function renderMorph(ctx, state) {
     drawCells(ctx, projection, cells, {
       maxLat: pair.maxLat,
       shrink: morphTiles,
-      anchor: morphAnchor,
+      // A tile cannot centre on a dot that is not being drawn: the offset is
+      // real but invisible, so it reads as the poles quietly misaligning.
+      anchor: morphAnchor && morphDots,
       shore: morphShore ? studShore(land, studCount) : null,
       studCount,
     });
