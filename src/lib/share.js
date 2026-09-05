@@ -54,7 +54,8 @@ const FIELDS = [
   ['globeColumns', scaled(1 / 90)],
 ];
 
-// The checkboxes ride together in one byte rather than costing two each.
+// The switches ride together in one byte rather than costing two each. Bit
+// order is what each one means, so entries are appended, never reordered.
 const FLAGS = [
   'shadeStrain',
   'morphBare',
@@ -63,6 +64,7 @@ const FLAGS = [
   'morphTiles',
   'morphTissot',
   'morphAnchor',
+  'morphPlay',
 ];
 const FLAGS_CODE = FIELDS.length;
 

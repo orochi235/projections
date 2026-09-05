@@ -142,6 +142,9 @@ function readingErrors(pair, step = 15) {
 // One end of the blend to the other.
 const MORPH_SECONDS = 4;
 
+// How often at most the address bar is rewritten.
+const HASH_INTERVAL = 300;
+
 const DRAPE_PASSES = 3;
 const DRAPE_BUDGET = 60;
 const CLOTH_COLUMNS = 96;
@@ -193,12 +196,23 @@ export default function App() {
     ...decodeState(typeof window === 'undefined' ? '' : window.location.hash.slice(1)),
   }));
 
-  // Not while playing: the blend moves every frame, and browsers rate-limit
-  // replaceState. The hash catches up the moment it is paused.
+  // Held to a few writes a second. Playing moves the blend every frame and a
+  // dragged slider is not much slower, and browsers rate-limit replaceState —
+  // but a trailing write always lands, so the hash ends up current either way.
+  const lastWrite = useRef(0);
   useEffect(() => {
-    if (settings.morphPlay) return;
-    const token = encodeState(settings, INITIAL);
-    window.history.replaceState(null, '', token ? `#${token}` : window.location.pathname);
+    const write = () => {
+      lastWrite.current = performance.now();
+      const token = encodeState(settings, INITIAL);
+      window.history.replaceState(null, '', token ? `#${token}` : window.location.pathname);
+    };
+    const since = performance.now() - lastWrite.current;
+    if (since >= HASH_INTERVAL) {
+      write();
+      return undefined;
+    }
+    const id = setTimeout(write, HASH_INTERVAL - since);
+    return () => clearTimeout(id);
   }, [settings]);
   const [size, setSize] = useState({ width: 900, height: 520 });
   const [pointer, setPointer] = useState(null);

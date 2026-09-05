@@ -26,6 +26,7 @@ const DEFAULTS = {
   morphTiles: false,
   morphAnchor: true,
   morphTissot: false,
+  morphPlay: false,
   studCount: 1400,
   patchSite: 'isocol',
   patchFolds: 4.5,
@@ -64,6 +65,7 @@ test('every setting survives the round trip', () => {
     morphTiles: true,
     morphAnchor: false,
     morphTissot: true,
+    morphPlay: true,
   };
   const back = { ...DEFAULTS, ...decodeState(encodeState(moved, DEFAULTS)) };
   for (const key of Object.keys(moved)) {
