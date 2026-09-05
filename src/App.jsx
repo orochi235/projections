@@ -8,6 +8,7 @@ import { buildPair, sampleField } from './lib/diff.js';
 import { distortion } from './lib/distortion.js';
 import { sphereMesh, unitRadii } from './lib/globe.js';
 import { createDrape } from './lib/cloth.js';
+import { decodeState, encodeState } from './lib/share.js';
 import { globeField, peakAmplitude, reliefRadii, sheetField, sheetWrinkle, wrinkleRadii } from './lib/relief.js';
 import {
   patchColumns,
@@ -40,6 +41,7 @@ const INITIAL = {
   morphDots: true,
   morphCells: false,
   morphTiles: false,
+  morphAnchor: true,
   morphTissot: false,
   studCount: 1400,
   patchSite: 'isocol',
@@ -180,7 +182,17 @@ function useDrape(active, mesh, pair, foldScale) {
 }
 
 export default function App() {
-  const [settings, setSettings] = useState(INITIAL);
+  // The hash is read once, at startup. Writing it on every change and reading
+  // it back would fight the controls for who owns the view.
+  const [settings, setSettings] = useState(() => ({
+    ...INITIAL,
+    ...decodeState(typeof window === 'undefined' ? '' : window.location.hash.slice(1)),
+  }));
+
+  useEffect(() => {
+    const token = encodeState(settings, INITIAL);
+    window.history.replaceState(null, '', token ? `#${token}` : window.location.pathname);
+  }, [settings]);
   const [size, setSize] = useState({ width: 900, height: 520 });
   const [pointer, setPointer] = useState(null);
 
@@ -405,6 +417,7 @@ export default function App() {
           morphCells={settings.morphCells}
           morphDots={settings.morphDots}
           morphTiles={settings.morphTiles}
+          morphAnchor={settings.morphAnchor}
           morphTissot={settings.morphTissot}
           studCount={settings.studCount}
           areaRange={areaRange}

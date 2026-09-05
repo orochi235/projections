@@ -65,6 +65,7 @@ export default function Controls({ settings, update, summary, onSwap }) {
     morphCells,
     morphDots,
     morphTiles,
+    morphAnchor,
     morphTissot,
     studCount,
     patchSite,
@@ -101,6 +102,23 @@ export default function Controls({ settings, update, summary, onSwap }) {
         <button type="button" className="swap" onClick={onSwap}>
           Swap them
         </button>
+      </section>
+
+      <section className="rail-block">
+        <h2>Read the difference as</h2>
+        <div className="modes">
+          {Object.entries(MODES).map(([key, entry]) => (
+            <button
+              key={key}
+              type="button"
+              className={key === mode ? 'mode is-on' : 'mode'}
+              onClick={() => update({ mode: key })}
+            >
+              {entry.label}
+            </button>
+          ))}
+        </div>
+        <p className="hint">{MODES[mode].hint}</p>
       </section>
 
       {mode === 'globe' && (
@@ -165,22 +183,6 @@ export default function Controls({ settings, update, summary, onSwap }) {
         </section>
       )}
 
-      <section className="rail-block">
-        <h2>Read the difference as</h2>
-        <div className="modes">
-          {Object.entries(MODES).map(([key, entry]) => (
-            <button
-              key={key}
-              type="button"
-              className={key === mode ? 'mode is-on' : 'mode'}
-              onClick={() => update({ mode: key })}
-            >
-              {entry.label}
-            </button>
-          ))}
-        </div>
-        <p className="hint">{MODES[mode].hint}</p>
-      </section>
 
       <section className="rail-block">
         {mode === 'morph' && (
@@ -245,6 +247,16 @@ export default function Controls({ settings, update, summary, onSwap }) {
               onChange={(event) => update({ morphTiles: event.target.checked })}
             />
             <span>Shrink to equal area</span>
+          </label>
+        )}
+        {mode === 'morph' && morphCells && morphTiles && (
+          <label className="toggle toggle-nested">
+            <input
+              type="checkbox"
+              checked={morphAnchor}
+              onChange={(event) => update({ morphAnchor: event.target.checked })}
+            />
+            <span>Centre each on its dot</span>
           </label>
         )}
         {mode === 'morph' && (

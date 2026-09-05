@@ -236,23 +236,53 @@ function studCells(count) {
 }
 
 /**
- * One cell's ring in screen coordinates, or null if it is not safe to treat as
- * a plane polygon: a cell straddling the antimeridian projects to two pieces at
- * opposite edges of the map, and joining its vertices in order draws a band
- * across the whole width.
+ * One cell's ring in screen coordinates, laid out around its own site.
+ *
+ * A cell straddling the antimeridian projects to two pieces at opposite edges
+ * of the map, and joining its vertices in order draws a band across the whole
+ * width. Rather than drop those cells — which leaves a column of studs with no
+ * tile down each edge — the far vertices are carried back across by one width
+ * of map, so the tile stays whole and runs off the edge instead. The width to
+ * carry them by is the map's own at that latitude, since a pseudocylindrical
+ * map narrows toward the poles and one figure would not do.
  */
-function projectRing(projection, ring, width) {
+function projectRing(projection, ring, site) {
+  const anchor = projection(site);
+  if (!anchor || !Number.isFinite(anchor[0])) return null;
+
+  // Whether the seam runs through this cell is a question about longitudes, so
+  // it is answered before any projecting: only the few cells that say yes pay
+  // for the widths below.
+  const carried = ring.some(([lon]) => Math.abs(lon - site[0]) > 180);
+
+  // How far one lap of the world is, at each vertex's own latitude. A
+  // pseudocylindrical map narrows toward the poles, so one figure taken at the
+  // cell's centre carries its top and bottom by the wrong amount and the copy
+  // at the far edge lands askew over its neighbours.
+  const lap = (lat) => {
+    const west = projection([-180, lat]);
+    const east = projection([180, lat]);
+    return west && east ? Math.abs(east[0] - west[0]) : 0;
+  };
+
   const points = [];
-  let minX = Infinity;
-  let maxX = -Infinity;
+  const periods = [];
   for (const [lon, lat] of ring) {
     const at = projection([lon, lat]);
     if (!at || !Number.isFinite(at[0]) || !Number.isFinite(at[1])) return null;
-    minX = Math.min(minX, at[0]);
-    maxX = Math.max(maxX, at[0]);
-    points.push(at);
+    const period = carried ? lap(lat) : 0;
+    let x = at[0];
+    if (period > 0) {
+      while (x - anchor[0] > period / 2) x -= period;
+      while (anchor[0] - x > period / 2) x += period;
+    }
+    points.push([x, at[1]]);
+    periods.push(period);
   }
-  return maxX - minX > width / 2 ? null : points;
+  // The site's own lap, not the first vertex's: the tile is laid out around the
+  // site, so a copy whose anchor moves by a different width than its outline
+  // lands askew over its neighbours.
+  return { points, carried, periods, sitePeriod: carried ? lap(site[1]) : 0 };
 }
 
 /** Shoelace area and centroid of a screen-space ring. */
@@ -282,31 +312,52 @@ function ringMoments(points) {
  * need. The tile keeps whatever shape the cell had, so its elongation is the
  * angular distortion at the same time.
  */
-function drawTiles(ctx, projection, cells, width, maxLat) {
+function drawTiles(ctx, projection, cells, maxLat, anchor) {
   const rings = [];
   for (const feature of cells.features) {
     // The cells capping the poles are held to the domain edge, which leaves
     // them as slivers of almost no area — and one of those setting the floor
     // shrinks every tile on the map to a speck.
     if (Math.abs(feature.properties.site[1]) > maxLat) continue;
-    const points = projectRing(projection, feature.geometry.coordinates[0], width);
-    if (!points) continue;
+    const laid = projectRing(projection, feature.geometry.coordinates[0], feature.properties.site);
+    if (!laid) continue;
+    const { points, carried, periods, sitePeriod } = laid;
     const moments = ringMoments(points);
     if (!moments) continue;
-    // Hung on the stud rather than left on the cell's own centre. A projection
-    // does not send a cell's centroid to its generating point — the gap between
-    // them is how hard it is bending that patch — so scaling in place leaves
-    // every tile sitting a little off its dot, and the correspondence the tiles
-    // exist to show is the first thing lost.
-    const site = projection(feature.properties.site);
-    rings.push({
+    // A projection does not send a cell's centroid to its generating point, and
+    // the gap between them is how hard it is bending that patch. Hanging the
+    // tile on the stud puts the dot dead centre and makes the correspondence
+    // plain; leaving it on the centroid keeps that gap on show.
+    const site = anchor ? projection(feature.properties.site) : null;
+    const tile = {
       points,
       area: moments.area,
       cx: moments.cx,
       cy: moments.cy,
       ax: site && Number.isFinite(site[0]) ? site[0] : moments.cx,
       ay: site && Number.isFinite(site[1]) ? site[1] : moments.cy,
-    });
+    };
+    rings.push(tile);
+
+    // A cell the seam runs through belongs at both edges of the map, because
+    // the world wraps and those two pieces are the same cell. Drawing it once
+    // and letting it hang off one edge would leave a hole at the other. The
+    // copies that land outside are dropped by the clip.
+    if (carried) {
+      for (const direction of [1, -1]) {
+        const shifted = tile.points.map(([x, y], index) => [x + direction * periods[index], y]);
+        const moments = ringMoments(shifted);
+        if (!moments) continue;
+        rings.push({
+          ...tile,
+          points: shifted,
+          cx: moments.cx,
+          cy: moments.cy,
+          ax: tile.ax + direction * sitePeriod,
+          ay: tile.ay,
+        });
+      }
+    }
   }
   if (!rings.length) return;
 
@@ -433,7 +484,7 @@ function drawIndicatrices(ctx, projection, studCount, maxLat) {
 
 /** One projection bent into the other. Motion makes small differences obvious. */
 function renderMorph(ctx, state) {
-  const { pair, land, morphT, morphBare, studCount, morphCells, morphDots, morphTiles, morphTissot, width } = state;
+  const { pair, land, morphT, morphBare, studCount, morphCells, morphDots, morphTiles, morphTissot, morphAnchor } = state;
   const projection = pair.morph(morphT);
   if (morphBare) {
     strokeGeometry(ctx, projection, pair.domain, { color: PALETTE.hairline, width: 1, alpha: 0.5 });
@@ -442,7 +493,7 @@ function renderMorph(ctx, state) {
     if (land) strokeGeometry(ctx, projection, land, { color: PALETTE.ink, width: 0.8, alpha: 0.5 });
   }
 
-  if (morphCells || morphTiles) {
+  if (morphCells) {
     const cells = withinDomain(studCells(studCount), pair.maxLat);
     // Clipped to the map's own boundary. Holding the cells to +/-maxLat bounds
     // their coordinates, but the polar ones then have their clamped corners
@@ -451,7 +502,7 @@ function renderMorph(ctx, state) {
     ctx.beginPath();
     geoPath(projection, ctx)(pair.domain);
     ctx.clip();
-    if (morphTiles) drawTiles(ctx, projection, cells, width, pair.maxLat);
+    if (morphTiles) drawTiles(ctx, projection, cells, pair.maxLat, morphAnchor);
     else strokeGeometry(ctx, projection, cells, { color: PALETTE.ink, width: 0.5, alpha: 0.4 });
     ctx.restore();
   }
@@ -743,11 +794,18 @@ function renderGlobe(ctx, state) {
   });
 }
 
+// Order here is the order of the chips. It is deliberately not the order in
+// share.js, which fixes the byte a mode is stored as and so can never move.
 export const MODES = {
   globe: {
     label: 'Globe',
     hint: 'The same comparison, put back on the sphere.',
     render: renderGlobe,
+  },
+  morph: {
+    label: 'Morph',
+    hint: 'Bend the first map into the second.',
+    render: renderMorph,
   },
   outlines: {
     label: 'Outlines',
@@ -770,11 +828,6 @@ export const MODES = {
     hint: 'Which map bends local shapes more, in degrees.',
     render: (ctx, state) =>
       renderScalar(ctx, state, { value: (cell) => cell.angularDelta, range: state.angleRange }),
-  },
-  morph: {
-    label: 'Morph',
-    hint: 'Bend the first map into the second.',
-    render: renderMorph,
   },
 };
 
