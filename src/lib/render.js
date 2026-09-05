@@ -158,15 +158,8 @@ function renderScalar(ctx, { pair, field, land }, { value, range }) {
   strokeGeometry(ctx, projA, domain, { color: PALETTE.ink, width: 1.2, alpha: 0.5 });
 }
 
-/**
- * Studs, spread evenly by area over the globe rather than by longitude and
- * latitude. Equal ground per dot is the whole point: they are drawn at a fixed
- * size, so wherever a map inflates the ground the dots thin out and wherever it
- * shrinks it they crowd together, and the morph is that crowding rearranging
- * itself. A lattice would give the same count and add its own moiré; the
- * golden angle spaces them without one.
- */
-// Earth's surface, for saying how much ground one stud stands for.
+// Earth's surface, for saying how much of it one stud stands for. Ocean
+// included: these are areas of sphere, not of land.
 const EARTH_KM2 = 510_072_000;
 const EARTH_MI2 = 196_940_000;
 
@@ -174,8 +167,8 @@ const studCache = new Map();
 
 /**
  * Studs, spread evenly by area over the globe rather than by longitude and
- * latitude. Equal ground per dot is the whole point: wherever a map inflates
- * the ground the dots thin out and wherever it shrinks it they crowd together,
+ * latitude. Equal surface per dot is the whole point: wherever a map inflates
+ * the world the dots thin out and wherever it shrinks it they crowd together,
  * and the morph is that crowding rearranging itself. A lattice would give the
  * same count and add its own moiré; the golden angle spaces them without one.
  */
@@ -195,7 +188,7 @@ function studLattice(count) {
 }
 
 /**
- * The ground one stud stands for. Derived from the count rather than written
+ * The surface one stud stands for. Derived from the count rather than written
  * down beside it, so the legend cannot go stale when the count moves. The
  * lattice divides the whole sphere evenly, so this holds for every stud
  * including the ones a clipped map never draws.
@@ -204,7 +197,7 @@ export function studArea(count) {
   return { km2: EARTH_KM2 / count, mi2: EARTH_MI2 / count };
 }
 
-/** Dot size tracks the ground behind it, so total ink stays put as count moves. */
+/** Dot size tracks the surface behind it, so total ink stays put as count moves. */
 function studRadius(count) {
   return Math.max(0.7, Math.min(3.5, 1.5 * Math.sqrt(1400 / count)));
 }

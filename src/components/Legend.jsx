@@ -89,7 +89,7 @@ const RELIEF_TEXT = {
 };
 
 const RELIEF_FLAT = {
-  area: 'Both of these are equal-area maps, so they put the same ground area in the same amount of ink everywhere and their ratio is exactly 1.',
+  area: 'Both of these are equal-area maps, so they put the same surface area in the same amount of ink everywhere and their ratio is exactly 1.',
   angle: 'Both of these are conformal maps, so neither bends local shapes at all.',
   strain: 'These two sheets stretch by exactly the same amount everywhere.',
 };
@@ -153,7 +153,7 @@ export default function Legend({ mode, names, summary, areaRange, angleRange, pr
           <>
             <p className="legend-keys">
               <span className="stud-swatch" aria-hidden="true" /> One dot covers{' '}
-              <b>{thousands(studArea(studCount).km2)} km²</b> of ground —{' '}
+              <b>{thousands(studArea(studCount).km2)} km²</b> of the Earth’s surface —{' '}
               <b>{thousands(studArea(studCount).mi2)} sq mi</b>, about the size of{' '}
               {nearestCountry(studArea(studCount).km2)}.
             </p>

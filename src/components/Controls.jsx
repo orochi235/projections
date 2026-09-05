@@ -366,7 +366,7 @@ export default function Controls({ settings, update, summary, onSwap }) {
             </tbody>
           </table>
           <p className="hint">
-            Root-mean-square across the globe, weighted by ground area. Zero area error means the
+            Root-mean-square across the globe, weighted by surface area. Zero area error means the
             map is equal-area; zero angle error means it is conformal. No map gets both.
           </p>
         </section>
