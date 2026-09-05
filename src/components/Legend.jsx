@@ -108,7 +108,7 @@ function reliefTicks(source, range) {
   return areaTicks(range);
 }
 
-export default function Legend({ mode, names, summary, areaRange, angleRange, probe, globe, studCount }) {
+export default function Legend({ mode, names, summary, areaRange, angleRange, probe, globe, studCount, morphCells }) {
   return (
     <footer className="legend">
       <div className="legend-body">
@@ -152,15 +152,18 @@ export default function Legend({ mode, names, summary, areaRange, angleRange, pr
         {mode === 'morph' && (
           <>
             <p className="legend-keys">
-              <span className="stud-swatch" aria-hidden="true" /> One dot covers{' '}
+              <span className="stud-swatch" aria-hidden="true" /> One {morphCells ? 'cell' : 'dot'}{' '}
+              covers{' '}
               <b>{thousands(studArea(studCount).km2)} km²</b> of the Earth’s surface —{' '}
               <b>{thousands(studArea(studCount).mi2)} sq mi</b>, about the size of{' '}
               {nearestCountry(studArea(studCount).km2)}.
             </p>
             <p className="legend-keys">
               Drag the blend to bend <span className="key key-a">{names.a}</span> into{' '}
-              <span className="key key-b">{names.b}</span>. The dots crowd where a map shrinks the
-              world and thin out where it inflates it — an equal-area map spreads them evenly.
+              <span className="key key-b">{names.b}</span>.{' '}
+              {morphCells
+                ? 'Each cell is one stud’s territory, all holding equal surface, so they swell where a map inflates the world and shrink where it shrinks it — an equal-area map draws them all the same size.'
+                : 'The dots crowd where a map shrinks the world and thin out where it inflates it — an equal-area map spreads them evenly.'}
             </p>
           </>
         )}

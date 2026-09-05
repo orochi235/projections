@@ -37,6 +37,7 @@ const INITIAL = {
   foldScale: 0.3,
   wavelength: 0.22,
   morphBare: true,
+  morphCells: false,
   studCount: 1400,
   patchSite: 'isocol',
   patchFolds: 4.5,
@@ -398,6 +399,7 @@ export default function App() {
           mode={settings.mode}
           morphT={settings.morphT}
           morphBare={settings.morphBare}
+          morphCells={settings.morphCells}
           studCount={settings.studCount}
           areaRange={areaRange}
           angleRange={angleRange}
@@ -406,6 +408,7 @@ export default function App() {
         <Legend
           mode={settings.mode}
           studCount={settings.studCount}
+          morphCells={settings.morphCells}
           names={names}
           summary={field.summary}
           areaRange={areaRange}

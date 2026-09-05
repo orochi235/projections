@@ -62,6 +62,7 @@ export default function Controls({ settings, update, summary, onSwap }) {
     reliefSource,
     foldScale,
     morphBare,
+    morphCells,
     studCount,
     patchSite,
     patchFolds,
@@ -211,6 +212,16 @@ export default function Controls({ settings, update, summary, onSwap }) {
               onChange={(event) => update({ morphBare: event.target.checked })}
             />
             <span>Hide landmass</span>
+          </label>
+        )}
+        {mode === 'morph' && (
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={morphCells}
+              onChange={(event) => update({ morphCells: event.target.checked })}
+            />
+            <span>Cells, not dots</span>
           </label>
         )}
         {onScale && (
