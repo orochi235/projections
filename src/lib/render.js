@@ -124,11 +124,44 @@ function renderScalar(ctx, { pair, field, land }, { value, range }) {
   strokeGeometry(ctx, projA, domain, { color: PALETTE.ink, width: 1.2, alpha: 0.5 });
 }
 
+/**
+ * Studs, spread evenly by area over the globe rather than by longitude and
+ * latitude. Equal ground per dot is the whole point: they are drawn at a fixed
+ * size, so wherever a map inflates the ground the dots thin out and wherever it
+ * shrinks it they crowd together, and the morph is that crowding rearranging
+ * itself. A lattice would give the same count and add its own moiré; the
+ * golden angle spaces them without one.
+ */
+const STUDS = (() => {
+  const count = 1400;
+  const golden = Math.PI * (3 - Math.sqrt(5));
+  const points = [];
+  for (let i = 0; i < count; i++) {
+    const lat = Math.asin(1 - (2 * (i + 0.5)) / count) * (180 / Math.PI);
+    const lon = (((i * golden * (180 / Math.PI)) % 360) + 540) % 360 - 180;
+    points.push([lon, lat]);
+  }
+  return points;
+})();
+
 /** One projection bent into the other. Motion makes small differences obvious. */
 function renderMorph(ctx, { pair, land, morphT }) {
   const projection = pair.morph(morphT);
   drawBase(ctx, projection, land, pair.domain, { landAlpha: 0.75 });
   if (land) strokeGeometry(ctx, projection, land, { color: PALETTE.ink, width: 0.8, alpha: 0.5 });
+
+  ctx.save();
+  ctx.fillStyle = PALETTE.ink;
+  ctx.globalAlpha = 0.55;
+  for (const [lon, lat] of STUDS) {
+    if (Math.abs(lat) > pair.maxLat) continue;
+    const at = projection([lon, lat]);
+    if (!at || !Number.isFinite(at[0]) || !Number.isFinite(at[1])) continue;
+    ctx.beginPath();
+    ctx.arc(at[0], at[1], 1.5, 0, 2 * Math.PI);
+    ctx.fill();
+  }
+  ctx.restore();
 }
 
 /* ---------------------------------------------------------------- globe --- */

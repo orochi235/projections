@@ -119,7 +119,9 @@ export default function Legend({ mode, names, summary, areaRange, angleRange, pr
         {mode === 'morph' && (
           <p className="legend-keys">
             Drag the blend to bend <span className="key key-a">{names.a}</span> into{' '}
-            <span className="key key-b">{names.b}</span>.
+            <span className="key key-b">{names.b}</span>. The dots sit on equal patches of real
+            ground, so they crowd where a map shrinks the world and thin out where it inflates it —
+            an equal-area map spreads them evenly.
           </p>
         )}
 
