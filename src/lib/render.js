@@ -1,4 +1,4 @@
-import { geoGraticule10, geoInterpolate, geoPath } from 'd3-geo';
+import { geoEquirectangular, geoGraticule10, geoInterpolate, geoPath } from 'd3-geo';
 import { geoVoronoi } from 'd3-geo-voronoi';
 import { buildFrame, camera, locator, unitRadii } from './globe.js';
 import { patchCamera, patchLocator } from './patch.js';
@@ -211,6 +211,51 @@ function studRadius(count) {
   return Math.max(0.7, Math.min(3.5, 1.5 * Math.sqrt(1400 / count)));
 }
 
+// Land as a bitmap in plate carree, so a stud can be asked whether it is on
+// land in constant time. geoContains answers the same question exactly and
+// takes 730ms over 1400 studs, which is a visible stall on a slider drag; a
+// raster this size is finer than the 110m coastline it is drawn from.
+const MASK_WIDTH = 2048;
+const MASK_HEIGHT = 1024;
+let landMask = null;
+
+function maskOf(land) {
+  if (landMask) return landMask;
+  const canvas =
+    typeof OffscreenCanvas === 'function'
+      ? new OffscreenCanvas(MASK_WIDTH, MASK_HEIGHT)
+      : Object.assign(document.createElement('canvas'), { width: MASK_WIDTH, height: MASK_HEIGHT });
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const plate = geoEquirectangular()
+    .translate([MASK_WIDTH / 2, MASK_HEIGHT / 2])
+    .scale(MASK_WIDTH / (2 * Math.PI));
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  geoPath(plate, ctx)(land);
+  ctx.fill();
+  const { data } = ctx.getImageData(0, 0, MASK_WIDTH, MASK_HEIGHT);
+  landMask = new Uint8Array(MASK_WIDTH * MASK_HEIGHT);
+  for (let i = 0; i < landMask.length; i++) landMask[i] = data[i * 4] > 127 ? 1 : 0;
+  return landMask;
+}
+
+const shoreCache = new Map();
+
+/** Which studs stand on land. Fixed for a count, so it is asked for once. */
+function studShore(land, count) {
+  let shore = shoreCache.get(count);
+  if (shore) return shore;
+  const mask = maskOf(land);
+  shore = new Uint8Array(count);
+  studLattice(count).forEach(([lon, lat], index) => {
+    const x = Math.min(MASK_WIDTH - 1, Math.max(0, Math.floor(((lon + 180) / 360) * MASK_WIDTH)));
+    const y = Math.min(MASK_HEIGHT - 1, Math.max(0, Math.floor(((90 - lat) / 180) * MASK_HEIGHT)));
+    shore[index] = mask[y * MASK_WIDTH + x];
+  });
+  shoreCache.set(count, shore);
+  return shore;
+}
+
 const cellCache = new Map();
 
 /**
@@ -312,18 +357,18 @@ function ringMoments(points) {
  * need. The tile keeps whatever shape the cell had, so its elongation is the
  * angular distortion at the same time.
  */
-function drawTiles(ctx, projection, cells, maxLat, anchor) {
+function drawCells(ctx, projection, cells, { maxLat, shrink: shrinking, anchor, shore, studCount }) {
   const rings = [];
-  for (const feature of cells.features) {
+  cells.features.forEach((feature, index) => {
     // The cells capping the poles are held to the domain edge, which leaves
     // them as slivers of almost no area — and one of those setting the floor
     // shrinks every tile on the map to a speck.
-    if (Math.abs(feature.properties.site[1]) > maxLat) continue;
+    if (Math.abs(feature.properties.site[1]) > maxLat) return;
     const laid = projectRing(projection, feature.geometry.coordinates[0], feature.properties.site);
-    if (!laid) continue;
+    if (!laid) return;
     const { points, carried, periods, sitePeriod } = laid;
     const moments = ringMoments(points);
-    if (!moments) continue;
+    if (!moments) return;
     // A projection does not send a cell's centroid to its generating point, and
     // the gap between them is how hard it is bending that patch. Hanging the
     // tile on the stud puts the dot dead centre and makes the correspondence
@@ -331,6 +376,7 @@ function drawTiles(ctx, projection, cells, maxLat, anchor) {
     const site = anchor ? projection(feature.properties.site) : null;
     const tile = {
       points,
+      land: shore[index],
       area: moments.area,
       cx: moments.cx,
       cy: moments.cy,
@@ -358,7 +404,7 @@ function drawTiles(ctx, projection, cells, maxLat, anchor) {
         });
       }
     }
-  }
+  });
   if (!rings.length) return;
 
   // A low percentile rather than the outright minimum, for the same reason: the
@@ -366,15 +412,15 @@ function drawTiles(ctx, projection, cells, maxLat, anchor) {
   const sorted = rings.map((ring) => ring.area).sort((a, b) => a - b);
   const tightest = sorted[Math.floor(sorted.length * 0.05)];
 
-  // Edged rather than a flat silhouette: at the tight end the tiles nearly
-  // touch, and without a border the whole band reads as one dark mass instead
-  // of as tiles with no room left between them.
+  // Each cell wears the ground it stands on, so the mosaic is a map: the
+  // coastline is the boundary between the two fills rather than a line drawn
+  // over them, at whatever resolution the stud count buys.
   ctx.save();
-  ctx.fillStyle = PALETTE.ink;
   ctx.strokeStyle = PALETTE.ink;
   ctx.lineWidth = 0.6;
-  for (const { points, area, cx, cy, ax, ay } of rings) {
-    const shrink = Math.min(1, Math.sqrt(tightest / area));
+  for (const { points, land, area, cx, cy, ax, ay } of rings) {
+    const shrink = shrinking ? Math.min(1, Math.sqrt(tightest / area)) : 1;
+    ctx.fillStyle = land ? PALETTE.land : PALETTE.water;
     ctx.beginPath();
     points.forEach(([x, y], index) => {
       const px = ax + (x - cx) * shrink;
@@ -383,9 +429,9 @@ function drawTiles(ctx, projection, cells, maxLat, anchor) {
       else ctx.moveTo(px, py);
     });
     ctx.closePath();
-    ctx.globalAlpha = 0.14;
+    ctx.globalAlpha = 0.85;
     ctx.fill();
-    ctx.globalAlpha = 0.55;
+    ctx.globalAlpha = 0.35;
     ctx.stroke();
   }
   ctx.restore();
@@ -502,8 +548,13 @@ function renderMorph(ctx, state) {
     ctx.beginPath();
     geoPath(projection, ctx)(pair.domain);
     ctx.clip();
-    if (morphTiles) drawTiles(ctx, projection, cells, pair.maxLat, morphAnchor);
-    else strokeGeometry(ctx, projection, cells, { color: PALETTE.ink, width: 0.5, alpha: 0.4 });
+    drawCells(ctx, projection, cells, {
+      maxLat: pair.maxLat,
+      shrink: morphTiles,
+      anchor: morphAnchor,
+      shore: studShore(land, studCount),
+      studCount,
+    });
     ctx.restore();
   }
 

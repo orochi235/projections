@@ -10,6 +10,7 @@ export const PALETTE = {
   inkSoft: '#5C7080',
   hairline: '#A9BAC0',
   land: '#DCCFAE',
+  water: '#A9C6DA',
   a: '#BC1A7B',
   b: '#0A7A87',
 };
