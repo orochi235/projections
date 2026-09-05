@@ -291,6 +291,10 @@ body {
   font-weight: 500;
 }
 
+.toggle-nested {
+  margin-left: 1.4rem;
+}
+
 /* The stud as it is drawn on the canvas, so the legend and the map agree. */
 .stud-swatch {
   display: inline-block;

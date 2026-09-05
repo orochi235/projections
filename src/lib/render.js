@@ -5,6 +5,7 @@ import { patchCamera, patchLocator } from './patch.js';
 import { diverging, divergingStep, intensityStep, PALETTE, shadeStep } from './palette.js';
 
 const GRATICULE = geoGraticule10();
+const RADIANS = Math.PI / 180;
 
 function clear(ctx, width, height) {
   ctx.clearRect(0, 0, width, height);
@@ -234,8 +235,191 @@ function studCells(count) {
   return cells;
 }
 
+/**
+ * One cell's ring in screen coordinates, or null if it is not safe to treat as
+ * a plane polygon: a cell straddling the antimeridian projects to two pieces at
+ * opposite edges of the map, and joining its vertices in order draws a band
+ * across the whole width.
+ */
+function projectRing(projection, ring, width) {
+  const points = [];
+  let minX = Infinity;
+  let maxX = -Infinity;
+  for (const [lon, lat] of ring) {
+    const at = projection([lon, lat]);
+    if (!at || !Number.isFinite(at[0]) || !Number.isFinite(at[1])) return null;
+    minX = Math.min(minX, at[0]);
+    maxX = Math.max(maxX, at[0]);
+    points.push(at);
+  }
+  return maxX - minX > width / 2 ? null : points;
+}
+
+/** Shoelace area and centroid of a screen-space ring. */
+function ringMoments(points) {
+  let twiceArea = 0;
+  let cx = 0;
+  let cy = 0;
+  for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+    const cross = points[j][0] * points[i][1] - points[i][0] * points[j][1];
+    twiceArea += cross;
+    cx += (points[j][0] + points[i][0]) * cross;
+    cy += (points[j][1] + points[i][1]) * cross;
+  }
+  const area = twiceArea / 2;
+  if (Math.abs(area) < 1e-9) return null;
+  return { area: Math.abs(area), cx: cx / (6 * area), cy: cy / (6 * area) };
+}
+
+/**
+ * Every cell scaled about its own centre until they all hold the same amount of
+ * the map, so what is left to read is the gap between them.
+ *
+ * Normalized to the smallest cell rather than to the average: anything larger
+ * would have to grow, and a tile that grows overlaps its neighbours and stops
+ * being a tile. So the tightest place on the map is drawn gapless and every
+ * other place is drawn with the room the projection gave it that it did not
+ * need. The tile keeps whatever shape the cell had, so its elongation is the
+ * angular distortion at the same time.
+ */
+function drawTiles(ctx, projection, cells, width, maxLat) {
+  const rings = [];
+  for (const feature of cells.features) {
+    // The cells capping the poles are held to the domain edge, which leaves
+    // them as slivers of almost no area — and one of those setting the floor
+    // shrinks every tile on the map to a speck.
+    if (Math.abs(feature.properties.site[1]) > maxLat) continue;
+    const points = projectRing(projection, feature.geometry.coordinates[0], width);
+    if (!points) continue;
+    const moments = ringMoments(points);
+    if (moments) rings.push({ points, ...moments });
+  }
+  if (!rings.length) return;
+
+  // A low percentile rather than the outright minimum, for the same reason: the
+  // floor should be the tightest part of the map, not its worst single cell.
+  const sorted = rings.map((ring) => ring.area).sort((a, b) => a - b);
+  const tightest = sorted[Math.floor(sorted.length * 0.05)];
+
+  // Edged rather than a flat silhouette: at the tight end the tiles nearly
+  // touch, and without a border the whole band reads as one dark mass instead
+  // of as tiles with no room left between them.
+  ctx.save();
+  ctx.fillStyle = PALETTE.ink;
+  ctx.strokeStyle = PALETTE.ink;
+  ctx.lineWidth = 0.6;
+  for (const { points, area, cx, cy } of rings) {
+    const shrink = Math.min(1, Math.sqrt(tightest / area));
+    ctx.beginPath();
+    points.forEach(([x, y], index) => {
+      const px = cx + (x - cx) * shrink;
+      const py = cy + (y - cy) * shrink;
+      if (index) ctx.lineTo(px, py);
+      else ctx.moveTo(px, py);
+    });
+    ctx.closePath();
+    ctx.globalAlpha = 0.14;
+    ctx.fill();
+    ctx.globalAlpha = 0.55;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// Wide enough that the difference is real against f64, narrow enough that the
+// projection has not curved appreciably across it.
+const DERIVATIVE_STEP = 0.02;
+
+/**
+ * The Tissot indicatrix at a point: what a small circle on the globe becomes.
+ *
+ * The projection is differenced in screen space rather than read off `raw`,
+ * because a blended morph has no entry in the catalog to ask and because the
+ * ellipse has to be drawn at an angle on the canvas, which a bearing on the
+ * globe is not. Columns of the Jacobian are pixels per unit of ground east and
+ * north; its singular values are the semi-axes and the left rotation is the
+ * angle to draw them at.
+ */
+export function indicatrix(projection, lon, lat) {
+  const cosLat = Math.cos(lat * RADIANS);
+  if (cosLat < 1e-4) return null;
+  const east0 = projection([lon - DERIVATIVE_STEP, lat]);
+  const east1 = projection([lon + DERIVATIVE_STEP, lat]);
+  const north0 = projection([lon, lat - DERIVATIVE_STEP]);
+  const north1 = projection([lon, lat + DERIVATIVE_STEP]);
+  const centre = projection([lon, lat]);
+  if (!east0 || !east1 || !north0 || !north1 || !centre) return null;
+
+  const perEast = 1 / (2 * DERIVATIVE_STEP * RADIANS * cosLat);
+  const perNorth = 1 / (2 * DERIVATIVE_STEP * RADIANS);
+  const a = (east1[0] - east0[0]) * perEast;
+  const c = (east1[1] - east0[1]) * perEast;
+  const b = (north1[0] - north0[0]) * perNorth;
+  const d = (north1[1] - north0[1]) * perNorth;
+  if (![a, b, c, d].every(Number.isFinite)) return null;
+
+  const e = (a + d) / 2;
+  const f = (a - d) / 2;
+  const g = (c + b) / 2;
+  const h = (c - b) / 2;
+  const q = Math.hypot(e, h);
+  const r = Math.hypot(f, g);
+  return {
+    x: centre[0],
+    y: centre[1],
+    major: q + r,
+    minor: Math.abs(q - r),
+    angle: (Math.atan2(h, e) + Math.atan2(g, f)) / 2,
+  };
+}
+
+// A Tissot field is read one ellipse at a time, so it wants far fewer marks
+// than the studs give it.
+const INDICATRICES = 120;
+
+/**
+ * Tissot indicatrices on a stride through the stud lattice, so they stay spread
+ * by area and follow the same slider as everything else.
+ *
+ * Sized against the median mark rather than a fixed ground radius: the whole
+ * field is one scale factor, so the ellipses stay comparable to each other,
+ * and no projection can push them off the map or shrink them to nothing.
+ */
+function drawIndicatrices(ctx, projection, studCount, maxLat) {
+  const stride = Math.max(1, Math.round(studCount / INDICATRICES));
+  const marks = [];
+  const sizes = [];
+  for (let i = 0; i < studCount; i += stride) {
+    const [lon, lat] = studLattice(studCount)[i];
+    if (Math.abs(lat) > maxLat) continue;
+    const mark = indicatrix(projection, lon, lat);
+    if (!mark || !(mark.major > 0)) continue;
+    marks.push(mark);
+    sizes.push(Math.sqrt(mark.major * mark.minor));
+  }
+  if (!marks.length) return;
+
+  sizes.sort((a, b) => a - b);
+  const scale = 9 / sizes[Math.floor(sizes.length / 2)];
+
+  ctx.save();
+  ctx.strokeStyle = PALETTE.a;
+  ctx.fillStyle = PALETTE.a;
+  ctx.lineWidth = 0.8;
+  for (const { x, y, major, minor, angle } of marks) {
+    ctx.beginPath();
+    ctx.ellipse(x, y, major * scale, minor * scale, angle, 0, 2 * Math.PI);
+    ctx.globalAlpha = 0.18;
+    ctx.fill();
+    ctx.globalAlpha = 0.75;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 /** One projection bent into the other. Motion makes small differences obvious. */
-function renderMorph(ctx, { pair, land, morphT, morphBare, studCount, morphCells }) {
+function renderMorph(ctx, state) {
+  const { pair, land, morphT, morphBare, studCount, morphCells, morphDots, morphTiles, morphTissot, width } = state;
   const projection = pair.morph(morphT);
   if (morphBare) {
     strokeGeometry(ctx, projection, pair.domain, { color: PALETTE.hairline, width: 1, alpha: 0.5 });
@@ -244,7 +428,8 @@ function renderMorph(ctx, { pair, land, morphT, morphBare, studCount, morphCells
     if (land) strokeGeometry(ctx, projection, land, { color: PALETTE.ink, width: 0.8, alpha: 0.5 });
   }
 
-  if (morphCells) {
+  if (morphCells || morphTiles) {
+    const cells = withinDomain(studCells(studCount), pair.maxLat);
     // Clipped to the map's own boundary. Holding the cells to +/-maxLat bounds
     // their coordinates, but the polar ones then have their clamped corners
     // rejoined along great circles, which bow well outside the frame.
@@ -252,14 +437,14 @@ function renderMorph(ctx, { pair, land, morphT, morphBare, studCount, morphCells
     ctx.beginPath();
     geoPath(projection, ctx)(pair.domain);
     ctx.clip();
-    strokeGeometry(ctx, projection, withinDomain(studCells(studCount), pair.maxLat), {
-      color: PALETTE.ink,
-      width: 0.5,
-      alpha: 0.4,
-    });
+    if (morphTiles) drawTiles(ctx, projection, cells, width, pair.maxLat);
+    else strokeGeometry(ctx, projection, cells, { color: PALETTE.ink, width: 0.5, alpha: 0.4 });
     ctx.restore();
-    return;
   }
+
+  if (morphTissot) drawIndicatrices(ctx, projection, studCount, pair.maxLat);
+
+  if (!morphDots) return;
 
   ctx.save();
   ctx.fillStyle = PALETTE.ink;

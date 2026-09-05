@@ -37,7 +37,10 @@ const INITIAL = {
   foldScale: 0.3,
   wavelength: 0.22,
   morphBare: true,
+  morphDots: true,
   morphCells: false,
+  morphTiles: false,
+  morphTissot: false,
   studCount: 1400,
   patchSite: 'isocol',
   patchFolds: 4.5,
@@ -400,6 +403,9 @@ export default function App() {
           morphT={settings.morphT}
           morphBare={settings.morphBare}
           morphCells={settings.morphCells}
+          morphDots={settings.morphDots}
+          morphTiles={settings.morphTiles}
+          morphTissot={settings.morphTissot}
           studCount={settings.studCount}
           areaRange={areaRange}
           angleRange={angleRange}

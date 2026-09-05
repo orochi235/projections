@@ -63,6 +63,9 @@ export default function Controls({ settings, update, summary, onSwap }) {
     foldScale,
     morphBare,
     morphCells,
+    morphDots,
+    morphTiles,
+    morphTissot,
     studCount,
     patchSite,
     patchFolds,
@@ -218,10 +221,40 @@ export default function Controls({ settings, update, summary, onSwap }) {
           <label className="toggle">
             <input
               type="checkbox"
+              checked={morphDots}
+              onChange={(event) => update({ morphDots: event.target.checked })}
+            />
+            <span>Dots</span>
+          </label>
+        )}
+        {mode === 'morph' && (
+          <label className="toggle">
+            <input
+              type="checkbox"
               checked={morphCells}
               onChange={(event) => update({ morphCells: event.target.checked })}
             />
-            <span>Cells, not dots</span>
+            <span>Cells</span>
+          </label>
+        )}
+        {mode === 'morph' && morphCells && (
+          <label className="toggle toggle-nested">
+            <input
+              type="checkbox"
+              checked={morphTiles}
+              onChange={(event) => update({ morphTiles: event.target.checked })}
+            />
+            <span>Shrink to equal area</span>
+          </label>
+        )}
+        {mode === 'morph' && (
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={morphTissot}
+              onChange={(event) => update({ morphTissot: event.target.checked })}
+            />
+            <span>Tissot ellipses</span>
           </label>
         )}
         {onScale && (

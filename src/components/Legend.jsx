@@ -162,7 +162,7 @@ export default function Legend({ mode, names, summary, areaRange, angleRange, pr
               Drag the blend to bend <span className="key key-a">{names.a}</span> into{' '}
               <span className="key key-b">{names.b}</span>.{' '}
               {morphCells
-                ? 'Each cell is one stud’s territory, all holding equal surface, so they swell where a map inflates the world and shrink where it shrinks it — an equal-area map draws them all the same size.'
+                ? 'Each cell holds everything closer to its own dot than to any other, so the cells swell where a map inflates the world and shrink where it shrinks it — an equal-area map draws them all the same size. A dot sits inside its cell but off centre, by however hard the projection is bending that patch.'
                 : 'The dots crowd where a map shrinks the world and thin out where it inflates it — an equal-area map spreads them evenly.'}
             </p>
           </>
