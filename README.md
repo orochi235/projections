@@ -67,9 +67,22 @@ squeezed the other has the same area and still cannot lie flat. And because
 standard region and in compression outside it — so the folds start at a definite
 parallel, around 55° for Mercator, and nothing ruffles inside that.
 
-Fold depth is a scaling law, not a cloth simulation. It is held to a slope past
-which real material would fold over instead, and the view is the least rigorous
-one here after the morph.
+Fold depth is a scaling law, held to a slope past which real material would fold
+over instead. There was briefly a real cloth solver here — a relaxation that held
+every edge at its printed length and pressed the sheet against the globe — and it
+is gone, because the question it asks has no answer. A sheet has to be printed at
+some size, and the size that never has to stretch is set by the ratio of the
+map's largest local scale to its smallest, which lives at the pole where every
+projection is pathological: 666% excess for Mercator, 6,074% for Equal Earth,
+93,311% for the azimuthal equal-area. Print it smaller instead and an equal-area
+map is over-long and under-long at the same point everywhere, because `a·b = 1`,
+so the solver answers by shearing rather than folding. Neither picture is about
+the projection; both are about a print scale nobody can justify.
+
+What survives is the reading itself, and it is worth stating plainly: how well a
+map drapes is not its area error or its angle error but how uniform its scale is.
+Every projection in the catalogue except the conformal ones and Van der Grinten
+needs at least a 5.5-to-1 stretch somewhere before it will lie flat.
 
 ## How the numbers are worked out
 

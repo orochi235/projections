@@ -15,7 +15,10 @@ import { CATALOG } from './catalog.js';
 import { PATCH_SITES } from './patch.js';
 
 const MODES = ['outlines', 'displacement', 'area', 'angle', 'morph', 'globe'];
-const LAYERS = ['relief', 'wrinkle', 'cloth', 'patch', 'arcs'];
+// Slot 2 held the cloth layer. Its name is gone but its place is not: the
+// index is the byte, so removing it would renumber patch and arcs and break
+// every link already shared. Old cloth links now open on relief.
+const LAYERS = ['relief', 'wrinkle', 'relief', 'patch', 'arcs'];
 const SOURCES = ['area', 'angle', 'strain'];
 
 const clampByte = (value) => Math.max(0, Math.min(255, Math.round(value)));
@@ -46,7 +49,7 @@ const FIELDS = [
   ['contrast', { put: (v) => clampByte(Math.log2(v) * 4), get: (b) => 2 ** (b / 4) }],
   ['tilt', scaled(100, 100)],
   ['exaggeration', scaled(200)],
-  ['foldScale', scaled(100)],
+  ['foldScale', scaled(100)], // reserved: the cloth layer's, kept so the codes after it do not move
   ['wavelength', scaled(200)],
   ['patchFolds', scaled(10)],
   ['studCount', scaled(1 / 200)],

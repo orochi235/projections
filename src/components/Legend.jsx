@@ -210,20 +210,14 @@ export default function Legend({ mode, names, summary, areaRange, angleRange, pr
               <b>{(globe.peak.a.strain * 100).toFixed(0)}%</b> on{' '}
               <span className="key key-a">{names.a}</span>,{' '}
               <b>{(globe.peak.b.strain * 100).toFixed(0)}%</b> on{' '}
-              <span className="key key-b">{names.b}</span>. Fold depth follows a scaling law, not a
-              cloth simulation, and flattens off where real material would fold over.
+              <span className="key key-b">{names.b}</span>. Fold depth follows a scaling law and
+              flattens off where real material would fold over — no sheet is actually being
+              relaxed here, and none could be: laying a map on a globe by folding alone costs the
+              ratio of its largest local scale to its smallest, which is 666% even for Mercator.
             </p>
           </>
         )}
 
-        {mode === 'globe' && globe?.layer === 'cloth' && (
-          <p className="legend-keys">
-            Each sheet relaxed onto the sphere rather than folded by a formula: every edge holds the
-            length it has on the flat map, the globe pulls the sheet back down, and stiffness resists
-            sharp turns. Nothing sets the fold spacing — it is what those three settle into, which is
-            why the folds gather where the material has nowhere else to go.
-          </p>
-        )}
 
         {mode === 'globe' && globe?.layer === 'arcs' && (
           <p className="legend-keys">

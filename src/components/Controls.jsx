@@ -11,7 +11,6 @@ const RELIEF_SOURCES = [
 const GLOBE_LAYERS = [
   ['relief', 'Relief', 'One measure of the pair as height. Bulges where the first map is the worse of the two.'],
   ['wrinkle', 'Wrinkle', 'Each sheet laid back on the globe. Where it is too big to fit, it ruffles.'],
-  ['cloth', 'Cloth', 'The same two sheets, but relaxed onto the sphere instead of folded by a formula. Watch them settle.'],
   ['patch', 'Patch', 'One window on the globe, meshed fine enough to see the individual folds. The inset says where it was cut from.'],
   ['arcs', 'Reading error', 'Where the second map really shows the ground the first one puts at each node.'],
 ];
@@ -60,7 +59,6 @@ export default function Controls({ settings, update, summary, onSwap }) {
     contrast,
     shadeStrain,
     reliefSource,
-    foldScale,
     morphBare,
     morphCells,
     morphDots,
@@ -73,22 +71,21 @@ export default function Controls({ settings, update, summary, onSwap }) {
     patchFolds,
   } = settings;
   // Sampling drives the lattice the scalar modes colour and the globe layers
-  // displace. The cloth and patch layers carry their own mesh and the outline
-  // and morph modes never touch one, so leaving the slider on those is a
-  // control that does nothing.
+  // displace. The patch layer carries its own mesh and the outline and morph
+  // modes never touch one, so leaving the slider on those is a control that
+  // does nothing.
   const samples =
     mode === 'globe'
       ? ['relief', 'wrinkle', 'arcs'].includes(globeLayer)
       : ['displacement', 'area', 'angle'].includes(mode);
 
   const onWrinkle = mode === 'globe' && globeLayer === 'wrinkle';
-  const onCloth = mode === 'globe' && globeLayer === 'cloth';
   const onRelief = mode === 'globe' && globeLayer === 'relief';
   const onScale =
     mode === 'area' ||
     mode === 'angle' ||
     onRelief ||
-    ((onWrinkle || onCloth) && shadeStrain);
+    (onWrinkle && shadeStrain);
 
   return (
     <aside className="rail">
@@ -186,7 +183,7 @@ export default function Controls({ settings, update, summary, onSwap }) {
 
 
       <section className="rail-block">
-        {(onWrinkle || onCloth) && (
+        {onWrinkle && (
           <label className="toggle">
             <input
               type="checkbox"
@@ -318,20 +315,6 @@ export default function Controls({ settings, update, summary, onSwap }) {
               onChange={(event) => update({ patchFolds: Number(event.target.value) })}
             />
             <output>{patchFolds}</output>
-          </label>
-        )}
-        {onCloth && (
-          <label className="slider">
-            <span>Fold scale</span>
-            <input
-              type="range"
-              min="0.1"
-              max="0.5"
-              step="0.05"
-              value={foldScale}
-              onChange={(event) => update({ foldScale: Number(event.target.value) })}
-            />
-            <output>{foldScale.toFixed(2)}</output>
           </label>
         )}
         {mode === 'globe' && globeLayer === 'wrinkle' && (

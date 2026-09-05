@@ -18,7 +18,6 @@ const DEFAULTS = {
   tilt: 0.32,
   globeColumns: 180,
   exaggeration: 0.22,
-  foldScale: 0.3,
   wavelength: 0.22,
   morphBare: true,
   morphDots: true,
@@ -53,7 +52,6 @@ test('every setting survives the round trip', () => {
     contrast: 2 ** 1.25,
     tilt: -0.44,
     exaggeration: 0.4,
-    foldScale: 0.45,
     wavelength: 0.31,
     patchFolds: 6.5,
     studCount: 2600,
@@ -106,6 +104,14 @@ test('a playing blend links as playing, not as one frame of itself', () => {
   // Paused, the position is the whole point of the link.
   const paused = { ...playing, morphPlay: false };
   assert.ok(Math.abs({ ...DEFAULTS, ...decodeState(encodeState(paused, DEFAULTS)) }.morphT - 0.37) < 0.01);
+});
+
+test('a link to the layer that was removed still opens', () => {
+  // Byte 3 is the globe layer and slot 2 was the cloth. Anyone who shared one
+  // gets relief rather than a blank globe.
+  const token = encodeState({ ...DEFAULTS, globeLayer: 'arcs' }, DEFAULTS);
+  assert.equal(decodeState(token).globeLayer, 'arcs', 'the layers after it moved');
+  assert.equal(decodeState('AwI').globeLayer, 'relief');
 });
 
 test('a mangled hash opens the app rather than breaking it', () => {

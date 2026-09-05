@@ -7,7 +7,6 @@ import Legend from './components/Legend.jsx';
 import { buildPair, sampleField } from './lib/diff.js';
 import { distortion } from './lib/distortion.js';
 import { sphereMesh, unitRadii } from './lib/globe.js';
-import { createDrape } from './lib/cloth.js';
 import { decodeState, encodeState } from './lib/share.js';
 import { globeField, peakAmplitude, reliefRadii, sheetField, sheetWrinkle, wrinkleRadii } from './lib/relief.js';
 import {
@@ -35,7 +34,6 @@ const INITIAL = {
   tilt: 0.32,
   globeColumns: 180,
   exaggeration: 0.22,
-  foldScale: 0.3,
   wavelength: 0.22,
   morphBare: true,
   morphDots: true,
@@ -135,59 +133,12 @@ function readingErrors(pair, step = 15) {
   return arcs;
 }
 
-// Passes per animation frame, and the total each sheet gets. The drape is shown
-// forming and then held: the relaxation does not converge (see cloth.js), and
-// what runs past the budget is the solver arguing with itself, which reads as a
-// globe that never stops twitching. The budget is a third of what it was
-// because the sheet no longer starts from static — it starts folded.
 // One end of the blend to the other.
 const MORPH_SECONDS = 4;
 
 // How often at most the address bar is rewritten.
 const HASH_INTERVAL = 300;
 
-const DRAPE_PASSES = 3;
-const DRAPE_BUDGET = 60;
-const CLOTH_COLUMNS = 96;
-
-
-/**
- * Relaxes both sheets onto the sphere a few passes at a time, so the drape is
- * something you watch happen rather than a freeze followed by an answer. The
- * positions are mutated in place and the tick is only there to get the canvas
- * redrawn; nothing downstream reads it.
- */
-function useDrape(active, mesh, pair, foldScale) {
-  const [, setTick] = useState(0);
-  const drapes = useRef(null);
-
-  const sheets = useMemo(() => {
-    if (!active || !mesh) return null;
-    return {
-      a: createDrape(mesh, pair.rawA, pair.maxLat, { bending: foldScale }),
-      b: createDrape(mesh, pair.rawB, pair.maxLat, { bending: foldScale }),
-    };
-  }, [active, mesh, pair.rawA, pair.rawB, pair.maxLat, foldScale]);
-
-  drapes.current = sheets;
-
-  useEffect(() => {
-    if (!sheets) return undefined;
-    let frame = 0;
-    let spent = 0;
-    const tick = () => {
-      sheets.a.settle(DRAPE_PASSES);
-      sheets.b.settle(DRAPE_PASSES);
-      spent += DRAPE_PASSES;
-      setTick((n) => n + 1);
-      if (spent < DRAPE_BUDGET) frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [sheets]);
-
-  return sheets;
-}
 
 export default function App() {
   // The hash is read once, at startup. Writing it on every change and reading
@@ -304,20 +255,6 @@ export default function App() {
     [mesh, pair.rawA, pair.rawB, pair.maxLat],
   );
 
-  // The fold scale the relaxation settles on is measured in mesh cells, so a
-  // finer lattice buys finer folds rather than a better answer — past a point
-  // they land at the cell size and read as static. The cloth keeps its own
-  // coarser mesh, and the sampling slider still moves it up to that ceiling.
-  const clothMesh = useMemo(
-    () => (onGlobe ? sphereMesh(CLOTH_COLUMNS, CLOTH_COLUMNS / 2) : null),
-    [onGlobe],
-  );
-
-  const clothField = useMemo(
-    () => (clothMesh ? globeField(clothMesh, pair.rawA, pair.rawB, pair.maxLat) : null),
-    [clothMesh, pair.rawA, pair.rawB, pair.maxLat],
-  );
-
   // A patch is a small window meshed far finer than the globe, so both the
   // lattice and the two Jacobians over it depend only on which site is chosen.
   const patch = useMemo(() => {
@@ -337,13 +274,6 @@ export default function App() {
 
     return { site, mesh, outline: patchOutline(mesh), sheets };
   }, [onGlobe, settings.globeLayer, settings.patchSite, settings.patchFolds, pair.rawA, pair.rawB, pair.maxLat]);
-
-  const sheets = useDrape(
-    onGlobe && settings.globeLayer === 'cloth',
-    clothMesh,
-    pair,
-    settings.foldScale,
-  );
 
   const strainCap = useMemo(
     () => (mesh && measured ? robustStrain(measured, mesh.count) : 0.05),
@@ -377,18 +307,6 @@ export default function App() {
         // on the equator share no useful scale.
         strainScale: Math.max(patchStrain(a.sheet, patch.mesh.count), patchStrain(b.sheet, patch.mesh.count)) / settings.contrast,
         window: { mesh, outline: patch.outline, at: patch.site.at },
-      };
-    }
-
-    if (globeLayer === 'cloth') {
-      return {
-        ...shared,
-        mesh: clothMesh,
-        field: clothField,
-        strainScale: settings.shadeStrain ? strainCap / settings.contrast : 0,
-        pointsA: sheets?.a.points,
-        pointsB: sheets?.b.points,
-        radii: unitRadii(clothMesh),
       };
     }
 
@@ -429,7 +347,7 @@ export default function App() {
       flat: spread(measured, values, mesh.count) < FLAT_FLOOR[source],
       radii: reliefRadii(mesh, values, { range, amplitude: exaggeration }),
     };
-  }, [mesh, measured, clothMesh, clothField, patch, pair, areaRange, angleRange, strainCap, sheets, settings]);
+  }, [mesh, measured, patch, pair, areaRange, angleRange, strainCap, settings]);
 
   const probe = useMemo(() => {
     if (onGlobe || !pointer || !pair.projA.invert) return null;
