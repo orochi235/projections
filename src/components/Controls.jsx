@@ -1,4 +1,5 @@
 import { CATALOG, FAMILIES } from '../lib/catalog.js';
+import { PATCH_SITES, siteFor } from '../lib/patch.js';
 import { MODES } from '../lib/render.js';
 
 const RELIEF_SOURCES = [
@@ -11,6 +12,7 @@ const GLOBE_LAYERS = [
   ['relief', 'Relief', 'One measure of the pair as height. Bulges where the first map is the worse of the two.'],
   ['wrinkle', 'Wrinkle', 'Each sheet laid back on the globe. Where it is too big to fit, it ruffles.'],
   ['cloth', 'Cloth', 'The same two sheets, but relaxed onto the sphere instead of folded by a formula. Watch them settle.'],
+  ['patch', 'Patch', 'One window on the globe, meshed fine enough to see the individual folds. The inset says where it was cut from.'],
   ['arcs', 'Reading error', 'Where the second map really shows the ground the first one puts at each node.'],
 ];
 
@@ -33,6 +35,16 @@ function ProjectionPicker({ side, value, onChange }) {
   );
 }
 
+/**
+ * An isocol belongs to one map, not to the globe, so choosing a window chooses
+ * the map it means something on. If the other side already holds that map, it
+ * takes the one being displaced rather than leaving both sides the same.
+ */
+function showSiteOn(siteId, idB) {
+  const { projection } = siteFor(siteId);
+  return projection === idB ? { idA: projection, idB: 'equirectangular' } : { idA: projection };
+}
+
 export default function Controls({ settings, update, summary, onSwap }) {
   const {
     idA,
@@ -49,6 +61,8 @@ export default function Controls({ settings, update, summary, onSwap }) {
     shadeStrain,
     reliefSource,
     foldScale,
+    patchSite,
+    patchFolds,
   } = settings;
   const onWrinkle = mode === 'globe' && globeLayer === 'wrinkle';
   const onCloth = mode === 'globe' && globeLayer === 'cloth';
@@ -83,13 +97,36 @@ export default function Controls({ settings, update, summary, onSwap }) {
                 key={key}
                 type="button"
                 className={key === globeLayer ? 'mode is-on' : 'mode'}
-                onClick={() => update({ globeLayer: key })}
+                onClick={() =>
+                  update(key === 'patch' ? { globeLayer: key, ...showSiteOn(patchSite, idB) } : { globeLayer: key })
+                }
               >
                 {label}
               </button>
             ))}
           </div>
           <p className="hint">{GLOBE_LAYERS.find(([key]) => key === globeLayer)[2]}</p>
+          {globeLayer === 'patch' && (
+            <>
+              <h2>Window</h2>
+              <label className="picker picker-a">
+                <span className="picker-tick" aria-hidden="true" />
+                <select
+                  value={patchSite}
+                  onChange={(event) =>
+                    update({ patchSite: event.target.value, ...showSiteOn(event.target.value, idB) })
+                  }
+                >
+                  {PATCH_SITES.map((site) => (
+                    <option key={site.id} value={site.id}>
+                      {site.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <p className="hint">{siteFor(patchSite).why}</p>
+            </>
+          )}
           {onRelief && (
             <>
               <h2>Height from</h2>
@@ -193,6 +230,20 @@ export default function Controls({ settings, update, summary, onSwap }) {
               onChange={(event) => update({ exaggeration: Number(event.target.value) })}
             />
             <output>{Math.round(exaggeration * 100)}%</output>
+          </label>
+        )}
+        {mode === 'globe' && globeLayer === 'patch' && (
+          <label className="slider">
+            <span>Folds across</span>
+            <input
+              type="range"
+              min="3"
+              max="9"
+              step="0.5"
+              value={patchFolds}
+              onChange={(event) => update({ patchFolds: Number(event.target.value) })}
+            />
+            <output>{patchFolds}</output>
           </label>
         )}
         {onCloth && (

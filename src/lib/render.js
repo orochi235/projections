@@ -1,5 +1,6 @@
 import { geoGraticule10, geoInterpolate, geoPath } from 'd3-geo';
-import { buildFrame, camera, locator } from './globe.js';
+import { buildFrame, camera, locator, unitRadii } from './globe.js';
+import { patchCamera, patchLocator } from './patch.js';
 import { diverging, divergingStep, intensityStep, PALETTE, shadeStep } from './palette.js';
 
 const GRATICULE = geoGraticule10();
@@ -215,7 +216,7 @@ function strokeOnSphere(ctx, geometry, locate, { color, width, alpha }) {
 }
 
 /** One globe: painter's-algorithm quads, then coastline and graticule on top. */
-function drawGlobe(ctx, { mesh, radii, cam, land, quadColor, points }) {
+function drawGlobe(ctx, { mesh, radii, cam, land, quadColor, points, locate: given }) {
   const frame = buildFrame(mesh, radii, cam, points);
   const { sx, sy, order, shade: lambert, columns } = frame;
   const stride = columns + 1;
@@ -237,7 +238,7 @@ function drawGlobe(ctx, { mesh, radii, cam, land, quadColor, points }) {
     ctx.fill();
   }
 
-  const locate = locator(mesh, radii, cam, points);
+  const locate = given ?? locator(mesh, radii, cam, points);
   strokeOnSphere(ctx, GRATICULE, locate, { color: PALETTE.ink, width: 0.4, alpha: 0.14 });
   if (land) strokeOnSphere(ctx, land, locate, { color: PALETTE.ink, width: 0.75, alpha: 0.5 });
   return locate;
@@ -296,6 +297,62 @@ function drawArcs(ctx, arcs, locate) {
   ctx.restore();
 }
 
+/**
+ * The whole globe at thumbnail size with the patch's window picked out on it,
+ * so a close-up says where it was cut from. Drawn small and last, over the
+ * corner of the panel.
+ */
+function drawWindow(ctx, { mesh, outline, at }, { x, y, radius }) {
+  // Face-on to the window rather than following the drag: this is the locator,
+  // and a locator that can turn its own subject out of sight is not one.
+  const cam = camera({
+    yaw: -at[0] * (Math.PI / 180),
+    pitch: at[1] * (Math.PI / 180),
+    scale: radius,
+    cx: x,
+    cy: y,
+  });
+  const radii = unitRadii(mesh);
+  const locate = locator(mesh, radii, cam);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, 2 * Math.PI);
+  ctx.fillStyle = PALETTE.sheetDeep;
+  ctx.fill();
+  ctx.restore();
+
+  strokeOnSphere(ctx, GRATICULE, locate, { color: PALETTE.ink, width: 0.4, alpha: 0.2 });
+
+  // The window is a ring on the globe, so half of it can be over the horizon.
+  // Filling only the runs that face the camera keeps it from closing across the
+  // back of the sphere.
+  const ring = outline.map(([lon, lat]) => locate(lon, lat));
+  ctx.save();
+  ctx.beginPath();
+  let drawing = false;
+  for (const point of ring) {
+    if (point.z <= 0) {
+      drawing = false;
+      continue;
+    }
+    if (drawing) ctx.lineTo(point.x, point.y);
+    else {
+      ctx.moveTo(point.x, point.y);
+      drawing = true;
+    }
+  }
+  ctx.closePath();
+  ctx.globalAlpha = 0.5;
+  ctx.fillStyle = PALETTE.a;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = PALETTE.ink;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.restore();
+}
+
 /** The comparison put back on the sphere. */
 function renderGlobe(ctx, state) {
   const { globe, land, width, height } = state;
@@ -303,6 +360,28 @@ function renderGlobe(ctx, state) {
   const { mesh, field, layer, yaw, pitch } = globe;
   const view = { yaw, pitch };
   const stride = mesh.columns + 1;
+
+  if (layer === 'patch') {
+    const size = Math.min(width / 2.5, height - 96);
+    for (const [radii, colour, cx, name, sheet] of [
+      [globe.radiiA, PALETTE.a, width * 0.27, globe.names.a, globe.sheetA],
+      [globe.radiiB, PALETTE.b, width * 0.73, globe.names.b, globe.sheetB],
+    ]) {
+      const cam = patchCamera(mesh, radii, { size, cx, cy: height / 2 - 12, ...view });
+      drawGlobe(ctx, {
+        mesh,
+        radii,
+        cam,
+        land,
+        locate: patchLocator(mesh, radii, cam),
+        quadColor: (q, p0) =>
+          intensityStep(colour, (sheet.excess[p0] + sheet.excess[p0 + stride + 1]) / 2 / globe.strainScale),
+      });
+      caption(ctx, name, cx, height / 2 + size / 2 + 26, colour);
+    }
+    drawWindow(ctx, globe.window, { x: 74, y: height - 74, radius: 58 });
+    return;
+  }
 
   if (layer === 'wrinkle' || layer === 'cloth') {
     const scale = Math.min(width / 4.6, height / 2.5);

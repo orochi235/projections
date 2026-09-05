@@ -8,7 +8,14 @@ import { buildPair, sampleField } from './lib/diff.js';
 import { distortion } from './lib/distortion.js';
 import { sphereMesh, unitRadii } from './lib/globe.js';
 import { createDrape } from './lib/cloth.js';
-import { globeField, peakAmplitude, reliefRadii, wrinkleRadii } from './lib/relief.js';
+import { globeField, peakAmplitude, reliefRadii, sheetField, sheetWrinkle, wrinkleRadii } from './lib/relief.js';
+import {
+  patchColumns,
+  patchMesh,
+  patchOutline,
+  patchWavelength,
+  siteFor,
+} from './lib/patch.js';
 
 const LAND = feature(landTopology, landTopology.objects.land);
 const RADIANS = Math.PI / 180;
@@ -29,6 +36,8 @@ const INITIAL = {
   exaggeration: 0.22,
   foldScale: 0.3,
   wavelength: 0.22,
+  patchSite: 'isocol',
+  patchFolds: 4.5,
 };
 
 /** Symmetric range for the diverging ramps, clipped to the 95th percentile so a
@@ -85,6 +94,15 @@ function robustStrain(field, count) {
   if (!values.length) return 0.05;
   values.sort((x, y) => x - y);
   return Math.max(0.02, values[Math.floor(values.length * 0.75)]);
+}
+
+/** The 90th percentile of one patch's own excess, so each window is legible alone. */
+function patchStrain(sheet, count) {
+  const values = [];
+  for (let n = 0; n < count; n++) if (sheet.defined[n]) values.push(sheet.excess[n]);
+  if (!values.length) return 0.05;
+  values.sort((x, y) => x - y);
+  return Math.max(1e-3, values[Math.floor(values.length * 0.9)]);
 }
 
 /**
@@ -228,6 +246,26 @@ export default function App() {
     [clothMesh, pair.rawA, pair.rawB, pair.maxLat],
   );
 
+  // A patch is a small window meshed far finer than the globe, so both the
+  // lattice and the two Jacobians over it depend only on which site is chosen.
+  const patch = useMemo(() => {
+    if (!onGlobe || settings.globeLayer !== 'patch') return null;
+    const site = siteFor(settings.patchSite);
+    const mesh = patchMesh(site.at, site.span, patchColumns(settings.patchFolds));
+    const wavelength = patchWavelength(site.span, settings.patchFolds);
+
+    const sheets = [pair.rawA, pair.rawB].map((raw) => {
+      const sheet = sheetField(mesh, raw, pair.maxLat);
+      const radii = sheetWrinkle(mesh, sheet, wavelength);
+      if (site.exaggerate) {
+        for (let n = 0; n < mesh.count; n++) radii[n] = 1 + (radii[n] - 1) * site.exaggerate;
+      }
+      return { sheet, radii };
+    });
+
+    return { site, mesh, outline: patchOutline(mesh), sheets };
+  }, [onGlobe, settings.globeLayer, settings.patchSite, settings.patchFolds, pair.rawA, pair.rawB, pair.maxLat]);
+
   const sheets = useDrape(
     onGlobe && settings.globeLayer === 'cloth',
     clothMesh,
@@ -251,6 +289,24 @@ export default function App() {
       pitch: tilt,
       names: { a: pair.entryA.name, b: pair.entryB.name },
     };
+
+    if (globeLayer === 'patch') {
+      if (!patch) return null;
+      const [a, b] = patch.sheets;
+      return {
+        ...shared,
+        mesh: patch.mesh,
+        site: patch.site,
+        sheetA: a.sheet,
+        sheetB: b.sheet,
+        radiiA: a.radii,
+        radiiB: b.radii,
+        // Each patch is capped on its own spread: a window at the pole and one
+        // on the equator share no useful scale.
+        strainScale: Math.max(patchStrain(a.sheet, patch.mesh.count), patchStrain(b.sheet, patch.mesh.count)) / settings.contrast,
+        window: { mesh, outline: patch.outline, at: patch.site.at },
+      };
+    }
 
     if (globeLayer === 'cloth') {
       return {
@@ -301,7 +357,7 @@ export default function App() {
       flat: spread(measured, values, mesh.count) < FLAT_FLOOR[source],
       radii: reliefRadii(mesh, values, { range, amplitude: exaggeration }),
     };
-  }, [mesh, measured, clothMesh, clothField, pair, areaRange, angleRange, strainCap, sheets, settings]);
+  }, [mesh, measured, clothMesh, clothField, patch, pair, areaRange, angleRange, strainCap, sheets, settings]);
 
   const probe = useMemo(() => {
     if (onGlobe || !pointer || !pair.projA.invert) return null;
