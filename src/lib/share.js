@@ -65,8 +65,14 @@ const FLAGS = [
   'morphTissot',
   'morphAnchor',
   'morphPlay',
+  'morphShore',
 ];
-const FLAGS_CODE = FIELDS.length;
+
+// Past eight switches they no longer fit one byte, so they are written in
+// groups of eight, each with its own code. A group costs nothing until one of
+// its switches is off its default.
+const FLAG_BASE = FIELDS.length;
+const FLAG_GROUPS = Math.ceil(FLAGS.length / 8);
 
 function toBase64Url(bytes) {
   let binary = '';
@@ -85,15 +91,21 @@ export function encodeState(settings, defaults) {
   const bytes = [];
   FIELDS.forEach(([key, codec], code) => {
     if (settings[key] === undefined || settings[key] === defaults[key]) return;
+    // A running blend has no one position, so the frame it happened to be on
+    // when the link was copied is noise. The link says it is running; where it
+    // picks up from is not something to pin.
+    if (key === 'morphT' && settings.morphPlay) return;
     bytes.push(code, codec.put(settings[key]));
   });
 
-  if (FLAGS.some((key) => Boolean(settings[key]) !== Boolean(defaults[key]))) {
+  for (let group = 0; group < FLAG_GROUPS; group++) {
+    const keys = FLAGS.slice(group * 8, group * 8 + 8);
+    if (!keys.some((key) => Boolean(settings[key]) !== Boolean(defaults[key]))) continue;
     let mask = 0;
-    FLAGS.forEach((key, bit) => {
+    keys.forEach((key, bit) => {
       if (settings[key]) mask |= 1 << bit;
     });
-    bytes.push(FLAGS_CODE, mask);
+    bytes.push(FLAG_BASE + group, mask);
   }
   return bytes.length ? toBase64Url(bytes) : '';
 }
@@ -112,8 +124,9 @@ export function decodeState(token) {
     for (let i = 0; i + 1 < bytes.length; i += 2) {
       const code = bytes[i];
       const value = bytes[i + 1];
-      if (code === FLAGS_CODE) {
-        FLAGS.forEach((key, bit) => {
+      if (code >= FLAG_BASE && code < FLAG_BASE + FLAG_GROUPS) {
+        const group = code - FLAG_BASE;
+        FLAGS.slice(group * 8, group * 8 + 8).forEach((key, bit) => {
           settings[key] = Boolean(value & (1 << bit));
         });
         continue;

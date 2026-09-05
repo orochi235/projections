@@ -376,7 +376,7 @@ function drawCells(ctx, projection, cells, { maxLat, shrink: shrinking, anchor, 
     const site = anchor ? projection(feature.properties.site) : null;
     const tile = {
       points,
-      land: shore[index],
+      land: shore ? shore[index] : 0,
       area: moments.area,
       cx: moments.cx,
       cy: moments.cy,
@@ -420,7 +420,7 @@ function drawCells(ctx, projection, cells, { maxLat, shrink: shrinking, anchor, 
   ctx.lineWidth = 0.6;
   for (const { points, land, area, cx, cy, ax, ay } of rings) {
     const shrink = shrinking ? Math.min(1, Math.sqrt(tightest / area)) : 1;
-    ctx.fillStyle = land ? PALETTE.land : PALETTE.water;
+    ctx.fillStyle = shore ? (land ? PALETTE.land : PALETTE.water) : PALETTE.ink;
     ctx.beginPath();
     points.forEach(([x, y], index) => {
       const px = ax + (x - cx) * shrink;
@@ -429,9 +429,9 @@ function drawCells(ctx, projection, cells, { maxLat, shrink: shrinking, anchor, 
       else ctx.moveTo(px, py);
     });
     ctx.closePath();
-    ctx.globalAlpha = 0.85;
+    ctx.globalAlpha = shore ? 0.85 : 0.12;
     ctx.fill();
-    ctx.globalAlpha = 0.35;
+    ctx.globalAlpha = shore ? 0.35 : 0.45;
     ctx.stroke();
   }
   ctx.restore();
@@ -530,7 +530,7 @@ function drawIndicatrices(ctx, projection, studCount, maxLat) {
 
 /** One projection bent into the other. Motion makes small differences obvious. */
 function renderMorph(ctx, state) {
-  const { pair, land, morphT, morphBare, studCount, morphCells, morphDots, morphTiles, morphTissot, morphAnchor } = state;
+  const { pair, land, morphT, morphBare, studCount, morphCells, morphDots, morphTiles, morphTissot, morphAnchor, morphShore } = state;
   const projection = pair.morph(morphT);
   if (morphBare) {
     strokeGeometry(ctx, projection, pair.domain, { color: PALETTE.hairline, width: 1, alpha: 0.5 });
@@ -552,7 +552,7 @@ function renderMorph(ctx, state) {
       maxLat: pair.maxLat,
       shrink: morphTiles,
       anchor: morphAnchor,
-      shore: studShore(land, studCount),
+      shore: morphShore ? studShore(land, studCount) : null,
       studCount,
     });
     ctx.restore();

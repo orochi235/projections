@@ -27,6 +27,7 @@ const DEFAULTS = {
   morphAnchor: true,
   morphTissot: false,
   morphPlay: false,
+  morphShore: true,
   studCount: 1400,
   patchSite: 'isocol',
   patchFolds: 4.5,
@@ -65,7 +66,7 @@ test('every setting survives the round trip', () => {
     morphTiles: true,
     morphAnchor: false,
     morphTissot: true,
-    morphPlay: true,
+    morphShore: false,
   };
   const back = { ...DEFAULTS, ...decodeState(encodeState(moved, DEFAULTS)) };
   for (const key of Object.keys(moved)) {
@@ -94,6 +95,17 @@ test('every projection in the catalog can be named in a link', () => {
 test('a link stays short enough to paste', () => {
   const token = encodeState({ ...DEFAULTS, mode: 'morph', morphCells: true, idB: 'sinusoidal' }, DEFAULTS);
   assert.ok(token.length <= 12, `${token.length} characters: ${token}`);
+});
+
+test('a playing blend links as playing, not as one frame of itself', () => {
+  const playing = { ...DEFAULTS, mode: 'morph', morphPlay: true, morphT: 0.37 };
+  const back = { ...DEFAULTS, ...decodeState(encodeState(playing, DEFAULTS)) };
+  assert.equal(back.morphPlay, true);
+  assert.equal(back.morphT, DEFAULTS.morphT, 'the frame it was on came along');
+
+  // Paused, the position is the whole point of the link.
+  const paused = { ...playing, morphPlay: false };
+  assert.ok(Math.abs({ ...DEFAULTS, ...decodeState(encodeState(paused, DEFAULTS)) }.morphT - 0.37) < 0.01);
 });
 
 test('a mangled hash opens the app rather than breaking it', () => {

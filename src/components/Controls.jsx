@@ -66,6 +66,7 @@ export default function Controls({ settings, update, summary, onSwap }) {
     morphDots,
     morphTiles,
     morphAnchor,
+    morphShore,
     morphTissot,
     studCount,
     patchSite,
@@ -223,6 +224,16 @@ export default function Controls({ settings, update, summary, onSwap }) {
               onChange={(event) => update({ morphCells: event.target.checked })}
             />
             <span>Cells</span>
+          </label>
+        )}
+        {mode === 'morph' && morphCells && (
+          <label className="toggle toggle-nested">
+            <input
+              type="checkbox"
+              checked={morphShore}
+              onChange={(event) => update({ morphShore: event.target.checked })}
+            />
+            <span>Land and water</span>
           </label>
         )}
         {mode === 'morph' && morphCells && (

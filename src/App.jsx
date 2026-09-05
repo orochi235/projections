@@ -42,6 +42,7 @@ const INITIAL = {
   morphCells: false,
   morphTiles: false,
   morphAnchor: true,
+  morphShore: true,
   morphPlay: false,
   morphTissot: false,
   studCount: 1400,
@@ -196,14 +197,17 @@ export default function App() {
     ...decodeState(typeof window === 'undefined' ? '' : window.location.hash.slice(1)),
   }));
 
-  // Held to a few writes a second. Playing moves the blend every frame and a
-  // dragged slider is not much slower, and browsers rate-limit replaceState —
-  // but a trailing write always lands, so the hash ends up current either way.
+  // Held to a few writes a second, and skipped when the token has not changed:
+  // a dragged slider fires far faster than that and browsers rate-limit
+  // replaceState. A trailing write always lands, so the hash ends up current.
   const lastWrite = useRef(0);
+  const written = useRef(null);
   useEffect(() => {
     const write = () => {
       lastWrite.current = performance.now();
       const token = encodeState(settings, INITIAL);
+      if (token === written.current) return;
+      written.current = token;
       window.history.replaceState(null, '', token ? `#${token}` : window.location.pathname);
     };
     const since = performance.now() - lastWrite.current;
@@ -468,6 +472,7 @@ export default function App() {
           morphDots={settings.morphDots}
           morphTiles={settings.morphTiles}
           morphAnchor={settings.morphAnchor}
+          morphShore={settings.morphShore}
           morphTissot={settings.morphTissot}
           studCount={settings.studCount}
           areaRange={areaRange}
