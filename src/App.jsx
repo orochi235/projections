@@ -36,7 +36,7 @@ const INITIAL = {
   exaggeration: 0.22,
   foldScale: 0.3,
   wavelength: 0.22,
-  morphBare: false,
+  morphBare: true,
   studCount: 1400,
   patchSite: 'isocol',
   patchFolds: 4.5,

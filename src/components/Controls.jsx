@@ -210,7 +210,7 @@ export default function Controls({ settings, update, summary, onSwap }) {
               checked={morphBare}
               onChange={(event) => update({ morphBare: event.target.checked })}
             />
-            <span>Dots and outline only</span>
+            <span>Hide landmass</span>
           </label>
         )}
         {onScale && (

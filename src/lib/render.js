@@ -206,7 +206,7 @@ function studRadius(count) {
 function renderMorph(ctx, { pair, land, morphT, morphBare, studCount }) {
   const projection = pair.morph(morphT);
   if (morphBare) {
-    strokeGeometry(ctx, projection, pair.domain, { color: PALETTE.inkSoft, width: 1, alpha: 0.55 });
+    strokeGeometry(ctx, projection, pair.domain, { color: PALETTE.hairline, width: 1, alpha: 0.5 });
   } else {
     drawBase(ctx, projection, land, pair.domain, { landAlpha: 0.75 });
     if (land) strokeGeometry(ctx, projection, land, { color: PALETTE.ink, width: 0.8, alpha: 0.5 });
