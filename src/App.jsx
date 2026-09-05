@@ -42,6 +42,7 @@ const INITIAL = {
   morphCells: false,
   morphTiles: false,
   morphAnchor: true,
+  morphPlay: false,
   morphTissot: false,
   studCount: 1400,
   patchSite: 'isocol',
@@ -138,6 +139,9 @@ function readingErrors(pair, step = 15) {
 // what runs past the budget is the solver arguing with itself, which reads as a
 // globe that never stops twitching. The budget is a third of what it was
 // because the sheet no longer starts from static — it starts folded.
+// One end of the blend to the other.
+const MORPH_SECONDS = 4;
+
 const DRAPE_PASSES = 3;
 const DRAPE_BUDGET = 60;
 const CLOTH_COLUMNS = 96;
@@ -189,7 +193,10 @@ export default function App() {
     ...decodeState(typeof window === 'undefined' ? '' : window.location.hash.slice(1)),
   }));
 
+  // Not while playing: the blend moves every frame, and browsers rate-limit
+  // replaceState. The hash catches up the moment it is paused.
   useEffect(() => {
+    if (settings.morphPlay) return;
     const token = encodeState(settings, INITIAL);
     window.history.replaceState(null, '', token ? `#${token}` : window.location.pathname);
   }, [settings]);
@@ -197,6 +204,35 @@ export default function App() {
   const [pointer, setPointer] = useState(null);
 
   const update = useCallback((patch) => setSettings((prev) => ({ ...prev, ...patch })), []);
+
+  // The blend runs back and forth rather than stopping at one end: the
+  // interesting part is the change, and a morph that halts has to be rewound
+  // before it can be watched again.
+  const sweep = useRef(1);
+  const playing = settings.mode === 'morph' && settings.morphPlay;
+  useEffect(() => {
+    if (!playing) return undefined;
+    let frame = 0;
+    let last = performance.now();
+    const tick = (now) => {
+      const step = Math.min(0.05, (now - last) / 1000) / MORPH_SECONDS;
+      last = now;
+      setSettings((prev) => {
+        let t = prev.morphT + sweep.current * step;
+        if (t >= 1) {
+          t = 1;
+          sweep.current = -1;
+        } else if (t <= 0) {
+          t = 0;
+          sweep.current = 1;
+        }
+        return { ...prev, morphT: t };
+      });
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [playing]);
   const onResize = useCallback((next) => setSize(next), []);
   const onProbe = useCallback((next) => setPointer(next), []);
   const onDrag = useCallback((dx, dy) => {
@@ -424,6 +460,28 @@ export default function App() {
           angleRange={angleRange}
           globe={globe}
         />
+        {settings.mode === 'morph' && (
+          <div className="scrubber">
+            <button
+              type="button"
+              className="scrubber-play"
+              aria-label={settings.morphPlay ? 'Pause the blend' : 'Play the blend'}
+              onClick={() => update({ morphPlay: !settings.morphPlay })}
+            >
+              {settings.morphPlay ? '❚❚' : '▶'}
+            </button>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.005"
+              aria-label="Blend"
+              value={settings.morphT}
+              onChange={(event) => update({ morphT: Number(event.target.value), morphPlay: false })}
+            />
+            <output>{Math.round(settings.morphT * 100)}%</output>
+          </div>
+        )}
         <Legend
           mode={settings.mode}
           studCount={settings.studCount}

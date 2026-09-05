@@ -185,20 +185,6 @@ export default function Controls({ settings, update, summary, onSwap }) {
 
 
       <section className="rail-block">
-        {mode === 'morph' && (
-          <label className="slider">
-            <span>Blend</span>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value={morphT}
-              onChange={(event) => update({ morphT: Number(event.target.value) })}
-            />
-            <output>{Math.round(morphT * 100)}%</output>
-          </label>
-        )}
         {(onWrinkle || onCloth) && (
           <label className="toggle">
             <input

@@ -848,15 +848,15 @@ function renderGlobe(ctx, state) {
 // Order here is the order of the chips. It is deliberately not the order in
 // share.js, which fixes the byte a mode is stored as and so can never move.
 export const MODES = {
-  globe: {
-    label: 'Globe',
-    hint: 'The same comparison, put back on the sphere.',
-    render: renderGlobe,
-  },
   morph: {
     label: 'Morph',
     hint: 'Bend the first map into the second.',
     render: renderMorph,
+  },
+  globe: {
+    label: 'Globe',
+    hint: 'The same comparison, put back on the sphere.',
+    render: renderGlobe,
   },
   outlines: {
     label: 'Outlines',
