@@ -146,10 +146,14 @@ const STUDS = (() => {
 })();
 
 /** One projection bent into the other. Motion makes small differences obvious. */
-function renderMorph(ctx, { pair, land, morphT }) {
+function renderMorph(ctx, { pair, land, morphT, morphBare }) {
   const projection = pair.morph(morphT);
-  drawBase(ctx, projection, land, pair.domain, { landAlpha: 0.75 });
-  if (land) strokeGeometry(ctx, projection, land, { color: PALETTE.ink, width: 0.8, alpha: 0.5 });
+  if (morphBare) {
+    strokeGeometry(ctx, projection, pair.domain, { color: PALETTE.inkSoft, width: 1, alpha: 0.55 });
+  } else {
+    drawBase(ctx, projection, land, pair.domain, { landAlpha: 0.75 });
+    if (land) strokeGeometry(ctx, projection, land, { color: PALETTE.ink, width: 0.8, alpha: 0.5 });
+  }
 
   ctx.save();
   ctx.fillStyle = PALETTE.ink;

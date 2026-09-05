@@ -1,4 +1,4 @@
-import { geoProjection } from 'd3-geo';
+import { geoPath, geoProjection } from 'd3-geo';
 import { lookup } from './catalog.js';
 import { areaNormalization, distortion, interpolateRaw, scaleRaw } from './distortion.js';
 
@@ -41,6 +41,44 @@ export function buildPair({ idA, idB, width, height, rotate = 0, padding = 24 })
   const fit = (raw) =>
     geoProjection(raw).rotate([rotate, 0]).precision(0.2).fitExtent(extent, domain);
 
+  const blend = (t) => geoProjection(interpolateRaw(rawA, rawB, t)).rotate([rotate, 0]).precision(0.2);
+
+  /**
+   * One camera for the whole blend, wide enough to hold every step of it.
+   *
+   * Refitting at each step is what made the morph look like two motions.
+   * `fitExtent` takes the smaller of the two ratios that would fit the box, and
+   * a blend from a tall map to a wide one crosses from one ratio to the other
+   * partway through: the map grows up to that point and shrinks after it,
+   * reversing direction in a single frame. Fitting the union of every step
+   * instead leaves the camera still, so the only thing moving is the map.
+   *
+   * Lerping the two fitted framings is the other obvious answer and is wrong:
+   * it is smooth but not contained, and Equirectangular into Collignon swells
+   * 52px past the panel halfway through.
+   */
+  let framing = null;
+  const envelope = () => {
+    if (framing) return framing;
+    let x0 = Infinity;
+    let y0 = Infinity;
+    let x1 = -Infinity;
+    let y1 = -Infinity;
+    for (let k = 0; k <= 16; k++) {
+      const bounds = geoPath(blend(k / 16).scale(1).translate([0, 0])).bounds(domain);
+      x0 = Math.min(x0, bounds[0][0]);
+      y0 = Math.min(y0, bounds[0][1]);
+      x1 = Math.max(x1, bounds[1][0]);
+      y1 = Math.max(y1, bounds[1][1]);
+    }
+    const scale = Math.min((width - 2 * padding) / (x1 - x0), (height - 2 * padding) / (y1 - y0));
+    framing = {
+      scale,
+      translate: [width / 2 - ((x0 + x1) / 2) * scale, height / 2 - ((y0 + y1) / 2) * scale],
+    };
+    return framing;
+  };
+
   return {
     entryA,
     entryB,
@@ -50,7 +88,10 @@ export function buildPair({ idA, idB, width, height, rotate = 0, padding = 24 })
     domain,
     projA: fit(rawA),
     projB: fit(rawB),
-    morph: (t) => fit(interpolateRaw(rawA, rawB, t)),
+    morph: (t) => {
+      const { scale, translate } = envelope();
+      return blend(t).scale(scale).translate(translate);
+    },
   };
 }
 

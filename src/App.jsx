@@ -36,6 +36,7 @@ const INITIAL = {
   exaggeration: 0.22,
   foldScale: 0.3,
   wavelength: 0.22,
+  morphBare: false,
   patchSite: 'isocol',
   patchFolds: 4.5,
 };
@@ -395,6 +396,7 @@ export default function App() {
           land={LAND}
           mode={settings.mode}
           morphT={settings.morphT}
+          morphBare={settings.morphBare}
           areaRange={areaRange}
           angleRange={angleRange}
           globe={globe}

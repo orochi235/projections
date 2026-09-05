@@ -61,6 +61,7 @@ export default function Controls({ settings, update, summary, onSwap }) {
     shadeStrain,
     reliefSource,
     foldScale,
+    morphBare,
     patchSite,
     patchFolds,
   } = settings;
@@ -190,6 +191,16 @@ export default function Controls({ settings, update, summary, onSwap }) {
               onChange={(event) => update({ shadeStrain: event.target.checked })}
             />
             <span>Shade by strain</span>
+          </label>
+        )}
+        {mode === 'morph' && (
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={morphBare}
+              onChange={(event) => update({ morphBare: event.target.checked })}
+            />
+            <span>Dots and outline only</span>
           </label>
         )}
         {onScale && (
