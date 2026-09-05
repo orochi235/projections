@@ -292,7 +292,21 @@ function drawTiles(ctx, projection, cells, width, maxLat) {
     const points = projectRing(projection, feature.geometry.coordinates[0], width);
     if (!points) continue;
     const moments = ringMoments(points);
-    if (moments) rings.push({ points, ...moments });
+    if (!moments) continue;
+    // Hung on the stud rather than left on the cell's own centre. A projection
+    // does not send a cell's centroid to its generating point — the gap between
+    // them is how hard it is bending that patch — so scaling in place leaves
+    // every tile sitting a little off its dot, and the correspondence the tiles
+    // exist to show is the first thing lost.
+    const site = projection(feature.properties.site);
+    rings.push({
+      points,
+      area: moments.area,
+      cx: moments.cx,
+      cy: moments.cy,
+      ax: site && Number.isFinite(site[0]) ? site[0] : moments.cx,
+      ay: site && Number.isFinite(site[1]) ? site[1] : moments.cy,
+    });
   }
   if (!rings.length) return;
 
@@ -308,12 +322,12 @@ function drawTiles(ctx, projection, cells, width, maxLat) {
   ctx.fillStyle = PALETTE.ink;
   ctx.strokeStyle = PALETTE.ink;
   ctx.lineWidth = 0.6;
-  for (const { points, area, cx, cy } of rings) {
+  for (const { points, area, cx, cy, ax, ay } of rings) {
     const shrink = Math.min(1, Math.sqrt(tightest / area));
     ctx.beginPath();
     points.forEach(([x, y], index) => {
-      const px = cx + (x - cx) * shrink;
-      const py = cy + (y - cy) * shrink;
+      const px = ax + (x - cx) * shrink;
+      const py = ay + (y - cy) * shrink;
       if (index) ctx.lineTo(px, py);
       else ctx.moveTo(px, py);
     });
