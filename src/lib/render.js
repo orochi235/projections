@@ -295,18 +295,28 @@ function projectRing(projection, ring, site) {
   const anchor = projection(site);
   if (!anchor || !Number.isFinite(anchor[0])) return null;
 
+  // Where the map is cut is a question about the central meridian, not about
+  // the 180th: turning it moves the seam to some other longitude, and both the
+  // test below and the width below that have to follow it there.
+  const spin = projection.rotate ? projection.rotate()[0] : 0;
+  const wrap = (lon) => ((((lon + 180) % 360) + 360) % 360) - 180;
+  const onMap = (lon) => wrap(lon + spin);
+  const edge = wrap(180 - spin);
+
   // Whether the seam runs through this cell is a question about longitudes, so
   // it is answered before any projecting: only the few cells that say yes pay
   // for the widths below.
-  const carried = ring.some(([lon]) => Math.abs(lon - site[0]) > 180);
+  const carried = ring.some(([lon]) => Math.abs(onMap(lon) - onMap(site[0])) > 180);
 
-  // How far one lap of the world is, at each vertex's own latitude. A
-  // pseudocylindrical map narrows toward the poles, so one figure taken at the
-  // cell's centre carries its top and bottom by the wrong amount and the copy
-  // at the far edge lands askew over its neighbours.
+  // How far one lap of the world is, at each vertex's own latitude — measured
+  // either side of the seam, which is the one place the two edges of the map
+  // sit at the same longitude. A pseudocylindrical map narrows toward the
+  // poles, so one figure taken at the cell's centre carries its top and bottom
+  // by the wrong amount and the copy at the far edge lands askew over its
+  // neighbours.
   const lap = (lat) => {
-    const west = projection([-180, lat]);
-    const east = projection([180, lat]);
+    const west = projection([edge - 1e-6, lat]);
+    const east = projection([edge + 1e-6, lat]);
     return west && east ? Math.abs(east[0] - west[0]) : 0;
   };
 
@@ -317,10 +327,10 @@ function projectRing(projection, ring, site) {
     if (!at || !Number.isFinite(at[0]) || !Number.isFinite(at[1])) return null;
     const period = carried ? lap(lat) : 0;
     let x = at[0];
-    if (period > 0) {
-      while (x - anchor[0] > period / 2) x -= period;
-      while (anchor[0] - x > period / 2) x += period;
-    }
+    // Carried in one step rather than a lap at a time. Stepping is a loop over
+    // a number this code does not choose, and a width that comes out at zero
+    // makes it an endless one.
+    if (period > 0) x -= period * Math.round((x - anchor[0]) / period);
     points.push([x, at[1]]);
     periods.push(period);
   }
