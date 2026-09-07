@@ -4,5 +4,5 @@ import react from '@vitejs/plugin-react';
 export default defineConfig(({ command }) => ({
   base: command === 'build' ? '/projections/' : '/',
   plugins: [react()],
-  server: { port: 5173 },
+  server: { host: '::', port: 5173 },
 }));
