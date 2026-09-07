@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { geoEquirectangularRaw, geoMercatorRaw } from 'd3-geo';
+import { geoContains, geoEquirectangularRaw, geoMercatorRaw, geoPath } from 'd3-geo';
 import { CATALOG, lookup } from '../src/lib/catalog.js';
 import { areaNormalization, distortion, scaleRaw } from '../src/lib/distortion.js';
 import { buildPair, sampleField } from '../src/lib/diff.js';
@@ -68,5 +68,33 @@ test('identical projections diff to nothing', () => {
   for (const cell of field.cells) {
     assert.ok(Math.abs(cell.arealRatio) < 1e-9);
     assert.ok(Math.abs(cell.angularDelta) < 1e-9);
+  }
+});
+
+test('the world the pair covers is a band, not a ring with a seam in it', () => {
+  const pair = buildPair({ idA: 'mercator', idB: 'equalEarth', width: 834, height: 469 });
+  for (const lon of [-180, -90, 0, 35, 145, 180]) {
+    assert.ok(geoContains(pair.domain, [lon, 0]), `the equator at ${lon} is outside the domain`);
+  }
+  assert.ok(!geoContains(pair.domain, [0, 89]), 'the north cap is inside the domain');
+  assert.ok(!geoContains(pair.domain, [0, -89]), 'the south cap is inside the domain');
+});
+
+test('turning the central meridian does not draw a line down the middle', () => {
+  // The outline is the same length wherever the map is cut. A domain written as
+  // one ring closed along the 180th meridian is not: turn the map and that edge
+  // lands inside the frame, adding its own height to the outline — and drawing
+  // itself across the picture.
+  const frame = { idA: 'mercator', idB: 'equalEarth', width: 834, height: 469 };
+  const outline = (rotate) => {
+    const pair = buildPair({ ...frame, rotate });
+    return geoPath(pair.morph(0.5)).measure(pair.domain);
+  };
+  const straight = outline(0);
+  for (const rotate of [-170, 45, 90, 145]) {
+    assert.ok(
+      Math.abs(outline(rotate) - straight) < 1,
+      `at ${rotate} the outline measured ${outline(rotate).toFixed(1)} against ${straight.toFixed(1)}`,
+    );
   }
 });

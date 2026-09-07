@@ -95,13 +95,25 @@ export function buildPair({ idA, idB, width, height, rotate = 0, padding = 24 })
   };
 }
 
-/** GeoJSON polygon covering the world down to +/- maxLat. */
+/**
+ * GeoJSON polygon covering the world down to +/- maxLat: the band between two
+ * circles of latitude, as a ring around the top and a hole around the bottom.
+ *
+ * Written this way because the obvious single ring — east along the top, west
+ * along the bottom, closed — has two edges lying on the 180th meridian, and
+ * those are only invisible while the map is cut there. Turn the central
+ * meridian and they become a line drawn down the middle of the map, with the
+ * fill and the clip following it. Two circles of latitude have no such edge at
+ * any rotation, and d3 supplies the cut edges itself wherever it splits the
+ * band.
+ */
 export function clippedSphere(maxLat, step = 2) {
-  const ring = [];
-  for (let lon = -180; lon <= 180; lon += step) ring.push([lon, maxLat]);
-  for (let lon = 180; lon >= -180; lon -= step) ring.push([lon, -maxLat]);
-  ring.push([-180, maxLat]);
-  return { type: 'Polygon', coordinates: [ring] };
+  const circle = (lat, east) => {
+    const ring = [];
+    for (let k = 0; k <= 360 / step; k++) ring.push([east ? -180 + k * step : 180 - k * step, lat]);
+    return ring;
+  };
+  return { type: 'Polygon', coordinates: [circle(maxLat, true), circle(-maxLat, false)] };
 }
 
 /**
