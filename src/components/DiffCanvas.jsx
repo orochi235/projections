@@ -27,9 +27,16 @@ export default function DiffCanvas({ size, onResize, onProbe, onDrag, ...state }
     const canvas = canvasRef.current;
     if (!canvas || !state.pair || !state.field) return;
 
-    const ratio = window.devicePixelRatio || 1;
-    canvas.width = size.width * ratio;
-    canvas.height = size.height * ratio;
+    // Only when it actually changed. Assigning `width` reallocates the backing
+    // store even when the value is the same, and a playing morph does that 60
+    // times a second — enough churn for iOS to kill the tab within seconds.
+    const ratio = Math.min(2, window.devicePixelRatio || 1);
+    const width = Math.round(size.width * ratio);
+    const height = Math.round(size.height * ratio);
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+    }
     const ctx = canvas.getContext('2d');
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     draw(ctx, size.width, size.height, state);

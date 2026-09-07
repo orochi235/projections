@@ -136,8 +136,10 @@ function readingErrors(pair, step = 15) {
 // One end of the blend to the other.
 const MORPH_SECONDS = 4;
 
-// How often at most the address bar is rewritten.
-const HASH_INTERVAL = 300;
+// How often at most the address bar is rewritten. Safari throws once a page
+// passes 100 history writes in 30 seconds — a rate a dragged slider reaches
+// easily — so this stays comfortably under two a second.
+const HASH_INTERVAL = 600;
 
 
 export default function App() {
@@ -159,7 +161,13 @@ export default function App() {
       const token = encodeState(settings, INITIAL);
       if (token === written.current) return;
       written.current = token;
-      window.history.replaceState(null, '', token ? `#${token}` : window.location.pathname);
+      try {
+        window.history.replaceState(null, '', token ? `#${token}` : window.location.pathname);
+      } catch {
+        // Safari's rate limit throws rather than dropping the write. Left
+        // uncaught it takes the whole app down from inside an effect, which is
+        // a steep price for an address bar that is a moment out of date.
+      }
     };
     const since = performance.now() - lastWrite.current;
     if (since >= HASH_INTERVAL) {
@@ -173,6 +181,34 @@ export default function App() {
   const [pointer, setPointer] = useState(null);
 
   const update = useCallback((patch) => setSettings((prev) => ({ ...prev, ...patch })), []);
+
+  // What a finger holds: sliders and the drag on the globe. One update a frame,
+  // however fast the control fires. Touch delivers up to 120 events a second on
+  // an iPad and a new map costs far more than a frame, so handling them one for
+  // one buries the main thread under a backlog it never clears — the map stops
+  // moving and the page stops answering. Merging them costs a frame of latency.
+  //
+  // Only these controls. A checkbox routed through here is toggled by the
+  // browser, restored by React when the event ends with the state unchanged,
+  // and set again a frame later, which is a visible flicker for no gain.
+  const queued = useRef(null);
+  const pendingFrame = useRef(0);
+  const stream = useCallback((patch) => {
+    (queued.current ??= []).push(patch);
+    if (pendingFrame.current) return;
+    pendingFrame.current = requestAnimationFrame(() => {
+      pendingFrame.current = 0;
+      const batch = queued.current ?? [];
+      queued.current = null;
+      setSettings((prev) =>
+        batch.reduce(
+          (next, step) => ({ ...next, ...(typeof step === 'function' ? step(next) : step) }),
+          prev,
+        ),
+      );
+    });
+  }, []);
+  useEffect(() => () => cancelAnimationFrame(pendingFrame.current), []);
 
   // The blend runs back and forth rather than stopping at one end: the
   // interesting part is the change, and a morph that halts has to be rewound
@@ -204,13 +240,14 @@ export default function App() {
   }, [playing]);
   const onResize = useCallback((next) => setSize(next), []);
   const onProbe = useCallback((next) => setPointer(next), []);
-  const onDrag = useCallback((dx, dy) => {
-    setSettings((prev) => ({
-      ...prev,
-      rotate: ((prev.rotate + dx * 0.35 + 180) % 360) - 180,
-      tilt: Math.max(-1.2, Math.min(1.2, prev.tilt + dy * 0.005)),
-    }));
-  }, []);
+  const onDrag = useCallback(
+    (dx, dy) =>
+      stream((prev) => ({
+        rotate: ((prev.rotate + dx * 0.35 + 180) % 360) - 180,
+        tilt: Math.max(-1.2, Math.min(1.2, prev.tilt + dy * 0.005)),
+      })),
+    [stream],
+  );
 
   const pair = useMemo(
     () =>
@@ -371,6 +408,7 @@ export default function App() {
       <Controls
         settings={settings}
         update={update}
+        stream={stream}
         summary={field.summary}
         onSwap={() => update({ idA: settings.idB, idB: settings.idA })}
       />
@@ -414,7 +452,7 @@ export default function App() {
               step="0.005"
               aria-label="Blend"
               value={settings.morphT}
-              onChange={(event) => update({ morphT: Number(event.target.value), morphPlay: false })}
+              onChange={(event) => stream({ morphT: Number(event.target.value), morphPlay: false })}
             />
             <output>{Math.round(settings.morphT * 100)}%</output>
           </div>

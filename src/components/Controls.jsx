@@ -44,7 +44,7 @@ function showSiteOn(siteId, idB) {
   return projection === idB ? { idA: projection, idB: 'equirectangular' } : { idA: projection };
 }
 
-export default function Controls({ settings, update, summary, onSwap }) {
+export default function Controls({ settings, update, stream, summary, onSwap }) {
   const {
     idA,
     idB,
@@ -272,7 +272,7 @@ export default function Controls({ settings, update, summary, onSwap }) {
               max="4"
               step="0.25"
               value={Math.log2(contrast)}
-              onChange={(event) => update({ contrast: 2 ** Number(event.target.value) })}
+              onChange={(event) => stream({ contrast: 2 ** Number(event.target.value) })}
             />
             <output>×{contrast < 10 ? contrast.toFixed(1) : contrast.toFixed(0)}</output>
           </label>
@@ -285,7 +285,7 @@ export default function Controls({ settings, update, summary, onSwap }) {
             max="180"
             step="5"
             value={-rotate}
-            onChange={(event) => update({ rotate: -Number(event.target.value) })}
+            onChange={(event) => stream({ rotate: -Number(event.target.value) })}
           />
           <output>{Math.round(-rotate)}°</output>
         </label>
@@ -298,7 +298,7 @@ export default function Controls({ settings, update, summary, onSwap }) {
               max="0.5"
               step="0.02"
               value={exaggeration}
-              onChange={(event) => update({ exaggeration: Number(event.target.value) })}
+              onChange={(event) => stream({ exaggeration: Number(event.target.value) })}
             />
             <output>{Math.round(exaggeration * 100)}%</output>
           </label>
@@ -312,7 +312,7 @@ export default function Controls({ settings, update, summary, onSwap }) {
               max="9"
               step="0.5"
               value={patchFolds}
-              onChange={(event) => update({ patchFolds: Number(event.target.value) })}
+              onChange={(event) => stream({ patchFolds: Number(event.target.value) })}
             />
             <output>{patchFolds}</output>
           </label>
@@ -326,7 +326,7 @@ export default function Controls({ settings, update, summary, onSwap }) {
               max="0.4"
               step="0.01"
               value={wavelength}
-              onChange={(event) => update({ wavelength: Number(event.target.value) })}
+              onChange={(event) => stream({ wavelength: Number(event.target.value) })}
             />
             <output>{(wavelength * (180 / Math.PI)).toFixed(0)}°</output>
           </label>
@@ -340,7 +340,7 @@ export default function Controls({ settings, update, summary, onSwap }) {
               max="4000"
               step="200"
               value={studCount}
-              onChange={(event) => update({ studCount: Number(event.target.value) })}
+              onChange={(event) => stream({ studCount: Number(event.target.value) })}
             />
             <output>{studCount.toLocaleString('en-US')}</output>
           </label>
@@ -355,7 +355,7 @@ export default function Controls({ settings, update, summary, onSwap }) {
               max="540"
               step="90"
               value={globeColumns}
-              onChange={(event) => update({ globeColumns: Number(event.target.value) })}
+              onChange={(event) => stream({ globeColumns: Number(event.target.value) })}
             />
           ) : (
             <input
@@ -364,7 +364,7 @@ export default function Controls({ settings, update, summary, onSwap }) {
               max="144"
               step="12"
               value={columns}
-              onChange={(event) => update({ columns: Number(event.target.value) })}
+              onChange={(event) => stream({ columns: Number(event.target.value) })}
             />
           )}
           <output>
