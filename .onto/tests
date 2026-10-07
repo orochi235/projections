@@ -1,3 +1,3 @@
-enlist: 3
+enlist: 4
 plugin: node
 run: npm test
